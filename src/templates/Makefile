@@ -1,5 +1,5 @@
 
-package={{ package_name }}
+package={{ project_name }}
 
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
 
