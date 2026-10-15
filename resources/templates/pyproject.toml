@@ -1,0 +1,57 @@
+[project]
+name = "{{ project_name }}"
+version = "{{ version }}"
+description = "{{ description }}"
+readme = "README.md"
+requires-python = "{{ requires_python }}"
+
+{% if use_console_script %}[project.scripts]
+{{ command_name }} = "{{ package_name }}.main:main"
+
+{% endif %}[build-system]
+{% if build_backend == "hatchling" %}requires = ["hatchling"]
+build-backend = "hatchling.build"
+{% elif build_backend == "uv_build" %}requires = ["uv_build>=0.9.0,<0.10.0"]
+build-backend = "uv_build"
+{% elif build_backend == "setuptools" %}requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+{% elif build_backend == "flit" %}requires = ["flit_core>=3.9"]
+build-backend = "flit_core.buildapi"
+{% elif build_backend == "pdm" %}requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+{% elif build_backend == "poetry" %}requires = ["poetry-core>=1.9"]
+build-backend = "poetry.core.masonry.api"
+{% endif %}
+[dependency-groups]
+dev = [
+{% if use_black %}    "black>=24.0",
+{% endif %}{% if use_isort %}    "isort>=5.13",
+{% endif %}{% if use_mypy %}    "mypy>=1.10",
+{% endif %}{% if use_pylint %}    "pylint>=3.2",
+{% endif %}{% if use_pytest %}    "pytest>=8.0",
+{% endif %}{% if use_ruff %}    "ruff>=0.5",
+{% endif %}]
+{% if use_pytest %}[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+{% endif %}{% if use_black %}[tool.black]
+line-length = {{ line_length }}
+
+{% endif %}{% if use_isort %}[tool.isort]
+profile = "black"
+line_length = {{ line_length }}
+
+{% endif %}{% if use_mypy %}[tool.mypy]
+python_version = "3.10"
+strict = true
+
+{% endif %}{% if use_pylint %}[tool.pylint.main]
+py-version = "3.10"
+
+{% endif %}{% if use_ruff %}[tool.ruff]
+line-length = {{ line_length }}
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+{% endif %}
