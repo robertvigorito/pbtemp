@@ -17,13 +17,16 @@ def _require_answer(answer: _Any) -> _Any:
     return answer
 
 
-def collect_answers() -> dict[str, str | bool | int]:
-    """Ask for project metadata, build backend, and optional project features."""
+def collect_answers(
+    defaults: dict[str, str | bool | int] | None = None,
+) -> dict[str, str | bool | int]:
+    """Ask for project details, using supplied values as prompt defaults."""
+    prompt_defaults = {**_DEFAULTS, **(defaults or {})}
     answers: dict[str, str | bool | int] = {}
     for name in ("project_name", "version", "description"):
         answer = _questionary.text(
             f"{name.replace('_', ' ').capitalize()}: ",
-            default=str(_DEFAULTS[name]),
+            default=str(prompt_defaults[name]),
         ).ask()
         answers[name] = str(_require_answer(answer)).strip()
 
@@ -32,19 +35,22 @@ def collect_answers() -> dict[str, str | bool | int]:
     if not _re.fullmatch(r"\d+(?:\.\d+)*(?:[a-zA-Z0-9.+-]*)", str(answers["version"])):
         raise ValueError("Version must be a valid numeric version, such as 0.1.0.")
 
+    if prompt_defaults["build_backend"] not in _BUILD_BACKENDS:
+        raise ValueError(f"Build backend must be one of: {', '.join(_BUILD_BACKENDS)}.")
+
     backend = _questionary.select(
         "Select a build backend:",
         choices=list(_BUILD_BACKENDS),
-        default=str(_DEFAULTS["build_backend"]),
+        default=str(prompt_defaults["build_backend"]),
     ).ask()
     answers["build_backend"] = str(_require_answer(backend))
 
-    selectable = ("black", "isort", "mypy", "pylint", "pytest", "ruff", "rez_build", "console_script")
+    selectable = ("black", "isort", "mypy", "nuke", "pylint", "pytest", "ruff", "rez_build", "console_script")
     choices = [
         _Choice(
             title=_OPTION_LABELS[name],
             value=name,
-            checked=bool(_DEFAULTS[f"use_{name}"]),
+            checked=bool(prompt_defaults[f"use_{name}"]),
         )
         for name in selectable
     ]
@@ -58,6 +64,6 @@ def collect_answers() -> dict[str, str | bool | int]:
 
     answers["package_name"] = _re.sub(r"[-.]", "_", str(answers["project_name"])).lower()
     answers["command_name"] = str(answers["project_name"]).replace("_", "-").lower()
-    answers["requires_python"] = str(_DEFAULTS["requires_python"])
-    answers["line_length"] = int(_DEFAULTS["line_length"])
+    answers["requires_python"] = str(prompt_defaults["requires_python"])
+    answers["line_length"] = int(prompt_defaults["line_length"])
     return answers

@@ -23,6 +23,7 @@ def answers(**overrides: str | bool) -> dict[str, str | bool | int]:
             "use_pytest": True,
             "use_ruff": True,
             "use_rez_build": False,
+            "use_nuke": False,
         }
     )
     values.update(overrides)
@@ -34,7 +35,15 @@ def test_generates_project_layout_and_valid_pyproject(tmp_path: Path) -> None:
 
     assert (tmp_path / "src" / "sample_project" / "main.py").is_file()
     assert (tmp_path / "tests" / "test_main.py").is_file()
+    assert not (tmp_path / "nuke").exists()
     assert (tmp_path / "README.md").is_file()
+    makefile = (tmp_path / "Makefile").read_text()
+    assert "package=sample_project" in makefile
+    assert "clean-build:" in makefile
+    assert "clean-pyc:" in makefile
+    assert "clean-test:" in makefile
+    assert "lint-check: lint check" in makefile
+    assert "poetry install" in makefile
     project = tomllib.loads((tmp_path / "pyproject.toml").read_text())
     assert project["project"]["name"] == "sample-project"
     assert project["project"]["scripts"] == {"sample-project": "sample_project.main:main"}
@@ -67,6 +76,17 @@ def test_rez_templates_are_copied_only_when_selected(tmp_path: Path) -> None:
 
     assert (tmp_path / "rez_build" / "package.py").is_file()
     assert (tmp_path / "rez_build" / "rezbuild.py").is_file()
+    assert 'env.NUKE_PATH.append("{root}/nuke")' not in (tmp_path / "rez_build" / "package.py").read_text()
+
+
+def test_nuke_templates_and_rez_path_are_added_when_selected(tmp_path: Path) -> None:
+    write_templates_to_cwd(answers(use_nuke=True, use_rez_build=True), output_dir=tmp_path)
+
+    assert (tmp_path / "nuke" / "init.py").is_file()
+    assert (tmp_path / "nuke" / "menu.py").is_file()
+    assert "sample-project" in (tmp_path / "nuke" / "menu.py").read_text()
+    rez_package = (tmp_path / "rez_build" / "package.py").read_text()
+    assert 'env.NUKE_PATH.append("{root}/nuke")' in rez_package
 
 
 def test_existing_files_are_not_overwritten(tmp_path: Path) -> None:

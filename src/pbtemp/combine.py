@@ -51,6 +51,8 @@ def write_templates_to_cwd(
             continue
         if relative_path.parts[0] == "tests" and not answers.get("use_pytest", False):
             continue
+        if relative_path.parts[0] == "nuke" and not answers.get("use_nuke", False):
+            continue
         if relative_path.parts[0] == "package":
             relative_path = _Path("src", answers["package_name"], *relative_path.parts[1:])
         if prefix:

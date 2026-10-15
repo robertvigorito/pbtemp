@@ -23,6 +23,7 @@ DEFAULTS: dict[str, str | bool | int] = {
     "use_pytest": True,
     "use_ruff": True,
     "use_rez_build": False,
+    "use_nuke": False,
 }
 BUILD_BACKENDS = ("hatchling", "uv_build", "setuptools", "flit", "pdm", "poetry")
 OPTION_LABELS = {
@@ -33,6 +34,7 @@ OPTION_LABELS = {
     "pytest": "pytest test framework",
     "ruff": "Ruff linter and formatter",
     "rez_build": "Rez build support",
+    "nuke": "Nuke startup and menu support",
     "console_script": "Console command entry point",
 }
 

@@ -37,6 +37,7 @@ _TEST_BUILD_ANSWERS: dict[str, str | bool | int] = {
     "use_pytest": True,
     "use_ruff": True,
     "use_rez_build": True,
+    "use_nuke": True,
 }
 
 
@@ -48,10 +49,107 @@ def cli() -> None:
 @app.command("init")
 def init_project(
     output_dir: _Path = _OUTPUT_DIR_OPTION,
+    project_name: str | None = _typer.Option(
+        None,
+        "--project-name",
+        help="Default project name shown in the interactive prompt.",
+    ),
+    version: str | None = _typer.Option(
+        None,
+        "--version",
+        help="Default version shown in the interactive prompt.",
+    ),
+    description: str | None = _typer.Option(
+        None,
+        "--description",
+        help="Default description shown in the interactive prompt.",
+    ),
+    build_backend: str | None = _typer.Option(
+        None,
+        "--build-backend",
+        help="Default build backend selection.",
+    ),
+    requires_python: str | None = _typer.Option(
+        None,
+        "--requires-python",
+        help="Default Python version requirement.",
+    ),
+    line_length: int | None = _typer.Option(
+        None,
+        "--line-length",
+        min=1,
+        help="Default configured line length.",
+    ),
+    use_console_script: bool | None = _typer.Option(
+        None,
+        "--use-console-script/--no-use-console-script",
+        help="Default whether to add a console script.",
+    ),
+    use_black: bool | None = _typer.Option(
+        None,
+        "--use-black/--no-use-black",
+        help="Default whether to include Black.",
+    ),
+    use_isort: bool | None = _typer.Option(
+        None,
+        "--use-isort/--no-use-isort",
+        help="Default whether to include isort.",
+    ),
+    use_mypy: bool | None = _typer.Option(
+        None,
+        "--use-mypy/--no-use-mypy",
+        help="Default whether to include mypy.",
+    ),
+    use_nuke: bool | None = _typer.Option(
+        None,
+        "--use-nuke/--no-use-nuke",
+        help="Default whether to include Nuke startup and menu files.",
+    ),
+    use_pylint: bool | None = _typer.Option(
+        None,
+        "--use-pylint/--no-use-pylint",
+        help="Default whether to include Pylint.",
+    ),
+    use_pytest: bool | None = _typer.Option(
+        None,
+        "--use-pytest/--no-use-pytest",
+        help="Default whether to include pytest.",
+    ),
+    use_ruff: bool | None = _typer.Option(
+        None,
+        "--use-ruff/--no-use-ruff",
+        help="Default whether to include Ruff.",
+    ),
+    use_rez_build: bool | None = _typer.Option(
+        None,
+        "--use-rez-build/--no-use-rez-build",
+        help="Default whether to include Rez build support.",
+    ),
 ) -> None:
     """Interactively create a Python project scaffold."""
+    defaults = {
+        name: value
+        for name, value in {
+            "project_name": project_name,
+            "version": version,
+            "description": description,
+            "build_backend": build_backend,
+            "requires_python": requires_python,
+            "line_length": line_length,
+            "use_console_script": use_console_script,
+            "use_black": use_black,
+            "use_isort": use_isort,
+            "use_mypy": use_mypy,
+            "use_nuke": use_nuke,
+            "use_pylint": use_pylint,
+            "use_pytest": use_pytest,
+            "use_ruff": use_ruff,
+            "use_rez_build": use_rez_build,
+        }.items()
+        if value is not None
+    }
     try:
-        answers = _collect_answers()
+        answers = _collect_answers(defaults=defaults)
     except KeyboardInterrupt as error:
         raise _typer.Abort() from error
     except ValueError as error:
