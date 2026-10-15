@@ -1,0 +1,6 @@
+# Destination paths are relative to the project root.
+# Use {package_name} when a template should follow the generated import package.
+[paths]
+package = "src/{package_name}"
+nuke = "src/nuke"
+rez_build = "src/rez_build"
