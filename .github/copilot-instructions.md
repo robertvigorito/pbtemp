@@ -8,6 +8,7 @@ Apply these guidelines to all project code and tests.
 - Use `snake_case` for variables, functions, methods, and modules; `PascalCase` for classes; and `UPPER_CASE` for constants.
 - Add type hints to function parameters, return values, and important variables where they clarify intent.
 - Keep code simple, readable, focused, and organized into small, single-purpose functions.
+- Avoid nested loops and multi-clause comprehensions when they obscure the logic; prefer explicit loops with meaningful intermediate variables unless the concise form is immediately clear.
 - Do not define classes inside other classes. Prefer composition over unnecessary inheritance.
 
 ## Functions and data
@@ -19,6 +20,7 @@ Apply these guidelines to all project code and tests.
 ## Docstrings
 
 - Use concise Google-style docstrings.
+- Add a concise module docstring to every Python module and a class docstring to every class.
 - Every function must include a `Returns` section. Include an `Args` section only when the function has parameters; omit it for functions with no arguments. Test functions should document their fixture arguments and `None` return.
 
 ## Error handling

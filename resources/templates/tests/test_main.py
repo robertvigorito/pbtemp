@@ -1,3 +1,5 @@
+"""Starter test module for the generated package."""
+
 from typing import Any
 
 from {{ package_name }}.main import main

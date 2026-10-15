@@ -31,6 +31,7 @@ def test_existing_project_metadata_and_features_become_defaults(tmp_path: Path) 
     (package_dir / "__init__.py").write_text("", encoding="utf-8")
     (tmp_path / "tests").mkdir()
     (tmp_path / "nuke").mkdir()
+    (tmp_path / "docs").mkdir()
 
     defaults = get_existing_project_defaults(tmp_path)
 
@@ -44,7 +45,15 @@ def test_existing_project_metadata_and_features_become_defaults(tmp_path: Path) 
     assert defaults["use_pytest"] is True
     assert defaults["use_ruff"] is True
     assert defaults["use_nuke"] is True
+    assert defaults["use_mkdocs"] is True
     assert defaults["line_length"] == 88
+
+    sparse_defaults = get_existing_project_defaults(tmp_path, include_fallbacks=False)
+    assert sparse_defaults["project_name"] == "legacy-app"
+    assert sparse_defaults["use_pytest"] is True
+    assert "use_black" not in sparse_defaults
+    assert "use_rez_build" not in sparse_defaults
+    assert sparse_defaults["use_mkdocs"] is True
     return None
 
 

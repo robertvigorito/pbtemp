@@ -5,6 +5,9 @@ from pathlib import Path as _Path
 import typer as _typer
 
 from pbtemp.combine import write_templates_to_cwd as _write_templates
+from pbtemp.history import read_history as _read_history
+from pbtemp.history import serialize_history as _serialize_history
+from pbtemp.history import write_history as _write_history
 from pbtemp.keyvars import DEFAULTS as _DEFAULTS
 from pbtemp.keyvars import get_template_paths as _get_template_paths
 from pbtemp.merge import get_existing_project_defaults as _get_existing_project_defaults
@@ -34,6 +37,7 @@ _TEST_BUILD_ANSWERS: dict[str, str | bool | int] = {
     "use_console_script": True,
     "use_black": True,
     "use_isort": True,
+    "use_mkdocs": True,
     "use_mypy": True,
     "use_pylint": True,
     "use_pytest": True,
@@ -41,6 +45,43 @@ _TEST_BUILD_ANSWERS: dict[str, str | bool | int] = {
     "use_rez_build": True,
     "use_nuke": True,
 }
+history_app = _typer.Typer(no_args_is_help=True, help="Read and edit remembered prompt options.")
+app.add_typer(history_app, name="history")
+
+
+def _load_history_defaults(ignore_history: bool) -> dict[str, str | bool | int]:
+    """Load remembered values unless history use was disabled for this run.
+
+    Args:
+        ignore_history: Whether to skip loading the saved prompt answers.
+
+    Returns:
+        dict[str, str | bool | int]: Remembered defaults, or an empty mapping.
+    """
+    if ignore_history:
+        return {}
+    try:
+        return _read_history()
+    except (OSError, ValueError) as error:
+        _typer.echo(f"Warning: could not read saved history: {error}", err=True)
+        return {}
+
+
+def _save_history(answers: dict[str, str | bool | int]) -> bool:
+    """Save successful prompt answers, warning rather than failing generation.
+
+    Args:
+        answers: Prompt answers from a completed generation or merge.
+
+    Returns:
+        bool: ``True`` if history was saved successfully.
+    """
+    try:
+        _write_history(answers)
+    except OSError as error:
+        _typer.echo(f"Warning: could not save prompt history: {error}", err=True)
+        return False
+    return True
 
 
 @app.callback()
@@ -107,6 +148,11 @@ def init_project(
         "--use-mypy/--no-use-mypy",
         help="Default whether to include mypy.",
     ),
+    use_mkdocs: bool | None = _typer.Option(
+        None,
+        "--use-mkdocs/--no-use-mkdocs",
+        help="Default whether to include MkDocs documentation files and tooling.",
+    ),
     use_nuke: bool | None = _typer.Option(
         None,
         "--use-nuke/--no-use-nuke",
@@ -132,6 +178,12 @@ def init_project(
         "--use-rez-build/--no-use-rez-build",
         help="Default whether to include Rez build support.",
     ),
+    ignore_history: bool = _typer.Option(
+        False,
+        "--ignore-history",
+        "--no-history",
+        help=("Do not use previously saved answers for this run (answers are still saved afterward)."),
+    ),
 ) -> bool:
     """Interactively create a Python project scaffold.
 
@@ -147,11 +199,13 @@ def init_project(
         use_black: Default Black selection.
         use_isort: Default isort selection.
         use_mypy: Default mypy selection.
+        use_mkdocs: Default MkDocs documentation selection.
         use_nuke: Default Nuke support selection.
         use_pylint: Default Pylint selection.
         use_pytest: Default pytest selection.
         use_ruff: Default Ruff selection.
         use_rez_build: Default Rez support selection.
+        ignore_history: Whether to skip remembered prompt values for this run.
 
     Returns:
         bool: ``True`` after all generated files are reported.
@@ -160,7 +214,7 @@ def init_project(
         typer.Abort: If an interactive prompt is cancelled.
         typer.BadParameter: If supplied defaults are invalid.
     """
-    defaults = {
+    explicit_defaults = {
         name: value
         for name, value in {
             "project_name": project_name,
@@ -172,6 +226,7 @@ def init_project(
             "use_console_script": use_console_script,
             "use_black": use_black,
             "use_isort": use_isort,
+            "use_mkdocs": use_mkdocs,
             "use_mypy": use_mypy,
             "use_nuke": use_nuke,
             "use_pylint": use_pylint,
@@ -181,6 +236,7 @@ def init_project(
         }.items()
         if value is not None
     }
+    defaults = {**_load_history_defaults(ignore_history), **explicit_defaults}
     try:
         answers = _collect_answers(defaults=defaults)
     except KeyboardInterrupt as error:
@@ -189,6 +245,7 @@ def init_project(
         raise _typer.BadParameter(str(error)) from error
 
     written = _write_templates(answers, output_dir=output_dir.expanduser())
+    _save_history(answers)
     _typer.echo(f"Created {len(written)} project files in {output_dir.expanduser().resolve()}")
     for path in written:
         _typer.echo(f"  {path.relative_to(output_dir.expanduser().resolve())}")
@@ -196,7 +253,15 @@ def init_project(
 
 
 @app.command("merge")
-def merge_project(output_dir: _Path = _OUTPUT_DIR_OPTION) -> bool:
+def merge_project(
+    output_dir: _Path = _OUTPUT_DIR_OPTION,
+    ignore_history: bool = _typer.Option(
+        False,
+        "--ignore-history",
+        "--no-history",
+        help=("Do not use previously saved answers for this run (answers are still saved afterward)."),
+    ),
+) -> bool:
     """Merge current templates into an existing Python project.
 
     Existing pyproject settings are preserved while missing template configuration
@@ -204,6 +269,7 @@ def merge_project(output_dir: _Path = _OUTPUT_DIR_OPTION) -> bool:
 
     Args:
         output_dir: Root directory of the existing project.
+        ignore_history: Whether to skip remembered prompt values for this run.
 
     Returns:
         bool: ``True`` after the project has been merged.
@@ -214,7 +280,10 @@ def merge_project(output_dir: _Path = _OUTPUT_DIR_OPTION) -> bool:
     """
     project_dir = output_dir.expanduser().resolve()
     try:
-        defaults = _get_existing_project_defaults(project_dir)
+        defaults = {
+            **_load_history_defaults(ignore_history),
+            **_get_existing_project_defaults(project_dir, include_fallbacks=False),
+        }
         answers = _collect_answers(defaults=defaults)
         changed = _merge_project_templates(answers=answers, project_dir=project_dir)
     except KeyboardInterrupt as error:
@@ -222,9 +291,70 @@ def merge_project(output_dir: _Path = _OUTPUT_DIR_OPTION) -> bool:
     except (FileNotFoundError, ValueError) as error:
         raise _typer.BadParameter(str(error)) from error
 
+    _save_history(answers)
     _typer.echo(f"Merged template configuration and added {len(changed)} files in {project_dir}.")
     for path in changed:
         _typer.echo(f"  {path.relative_to(project_dir)}")
+    return True
+
+
+def _display_history() -> bool:
+    """Print remembered options as JSON.
+
+    Returns:
+        bool: ``True`` when the history was displayed.
+    """
+    try:
+        options = _read_history()
+    except (OSError, ValueError) as error:
+        raise _typer.BadParameter(str(error)) from error
+    if not options:
+        _typer.echo("No saved prompt history.")
+    else:
+        _typer.echo(_serialize_history(options))
+    return True
+
+
+@history_app.command("dump")
+def dump_history() -> bool:
+    """Dump remembered prompt options as JSON.
+
+    Returns:
+        bool: ``True`` when the history was displayed.
+    """
+    return _display_history()
+
+
+@history_app.command("show")
+def show_history() -> bool:
+    """Read remembered prompt options.
+
+    Returns:
+        bool: ``True`` when the history was displayed.
+    """
+    return _display_history()
+
+
+@history_app.command("edit")
+def edit_history() -> bool:
+    """Interactively edit and save remembered prompt options.
+
+    Returns:
+        bool: ``True`` when the edited history was saved.
+
+    Raises:
+        typer.Abort: If an interactive prompt is cancelled.
+        typer.BadParameter: If saved history is invalid.
+    """
+    defaults = _load_history_defaults(ignore_history=False)
+    try:
+        answers = _collect_answers(defaults=defaults)
+    except KeyboardInterrupt as error:
+        raise _typer.Abort() from error
+    except ValueError as error:
+        raise _typer.BadParameter(str(error)) from error
+    if _save_history(answers):
+        _typer.echo("Saved prompt history.")
     return True
 
 

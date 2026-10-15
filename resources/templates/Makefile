@@ -1,6 +1,6 @@
 package={{ package_name }}
 
-.PHONY: clean build clean-build clean-pyc clean-test docs lint check lint-check install poetry-install test test-all script coverage
+.PHONY: clean build clean-build clean-pyc clean-test docs docs-serve lint check lint-check install poetry-install test test-all script coverage
 
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
 
@@ -34,13 +34,13 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr .pytest_cache
 	rm -fr tests/.pytest_cache
 
-docs: ## generate Sphinx HTML documentation, including API docs
-	rm -f docs/{{ package_name }}.rst
-	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ src/{{ package_name }}
-	$(MAKE) -C docs clean
-	$(MAKE) -C docs html
-	$(BROWSER) docs/_build/html/index.html
+docs: ## build the MkDocs documentation site
+{% if use_mkdocs %}	uv run mkdocs build
+
+docs-serve: ## preview documentation with live reload
+	uv run mkdocs serve
+{% else %}	@echo "MkDocs support is disabled; enable it when generating the scaffold."
+{% endif %}
 
 lint:
 	$(eval files=$(shell find ./src -type f -name "*.py"))

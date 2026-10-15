@@ -26,6 +26,15 @@ pbtemp init --project-name pbtemp_example --use-nuke
 
 These values become the defaults shown in the prompts; the answers can still be changed interactively. Boolean options also support `--no-use-...` forms.
 
+`init` and `merge` remember the last successful answers in the user configuration directory and use them as defaults on later runs. Use `--ignore-history` (or `--no-history`) to skip loading saved answers for one run; the new answers are still saved afterward. Inspect or edit saved answers with:
+
+```sh
+pbtemp history dump
+pbtemp history edit
+```
+
+`pbtemp history show` also displays the saved options. Editing opens the same validated prompts used by scaffold generation.
+
 Merge template configuration into an existing project with:
 
 ```sh
@@ -42,7 +51,7 @@ pbtemp build-temp
 
 This copies every template into a complete sample project under `dist/pbtemp-test-build`. It creates a project directory rather than a wheel; if that directory already exists, a numbered sibling is used.
 
-The generated project includes a `pyproject.toml`, README, Makefile, `.gitignore`, shared coding guidance in `.github/copilot-instructions.md`, and a `src`-style import package with documented functions. Optional pytest, Rez, and Nuke support can also be included. When Nuke support is selected, it creates startup/menu scripts and adds the package's `nuke` directory to Rez's `NUKE_PATH`. The package name is normalized from the project name, and the console command is configured to call the generated package's `main()` function.
+The generated project includes a `pyproject.toml`, README, Makefile, `.gitignore`, shared coding guidance in `.github/copilot-instructions.md`, and a `src`-style import package with documented functions. MkDocs support is enabled by default and adds a home page and generated API reference, with `mkdocs serve` and `mkdocs build` instructions; disable it with `--no-use-mkdocs`. Optional pytest, Rez, and Nuke support can also be included. When Nuke support is selected, it creates startup/menu scripts and adds the package's `nuke` directory to Rez's `NUKE_PATH`. The package name is normalized from the project name, and the console command is configured to call the generated package's `main()` function.
 
 ## Development
 

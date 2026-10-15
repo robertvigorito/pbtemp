@@ -1,6 +1,8 @@
 
 package={{ pktemp.package_name }}
 
+.PHONY: docs docs-serve
+
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
 
 build: clean
@@ -35,13 +37,11 @@ clean-test: ## remove test and coverage artifacts
 
 clean: clean-test clean-build clean-pyc
 
-docs: ## generate Sphinx HTML documentation, including API docs
-	rm -f docs/alfred.rst
-	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ alfred
-	$(MAKE) -C docs clean
-	$(MAKE) -C docs html
-	$(BROWSER) docs/_build/html/index.html
+docs: ## build the MkDocs documentation site
+	uv run --python 3.12 mkdocs build
+
+docs-serve: ## preview documentation with live reload
+	uv run --python 3.12 mkdocs serve
 
 lint: 
 	$(eval files=$(shell find ./src -type f -name "*.py"))

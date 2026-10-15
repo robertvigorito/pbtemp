@@ -18,6 +18,7 @@ DEFAULTS: dict[str, str | bool | int] = {
     "use_console_script": True,
     "use_black": False,
     "use_isort": False,
+    "use_mkdocs": True,
     "use_mypy": False,
     "use_pylint": False,
     "use_pytest": True,
@@ -29,6 +30,7 @@ BUILD_BACKENDS = ("hatchling", "uv_build", "setuptools", "flit", "pdm", "poetry"
 OPTION_LABELS = {
     "black": "Black formatter",
     "isort": "isort import sorter",
+    "mkdocs": "MkDocs documentation site",
     "mypy": "mypy type checker",
     "pylint": "Pylint linter",
     "pytest": "pytest test framework",

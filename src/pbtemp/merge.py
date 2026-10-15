@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory as _TemporaryDirectory
 from typing import Any as _Any
 
 import tomlkit as _tomlkit
+from tomlkit.exceptions import ParseError as _ParseError
 from tomlkit.items import Array as _Array
 from tomlkit.items import InlineTable as _InlineTable
 from tomlkit.items import Table as _Table
@@ -31,14 +32,20 @@ _FEATURE_TO_PACKAGE = {
     "pylint": "use_pylint",
     "pytest": "use_pytest",
     "ruff": "use_ruff",
+    "mkdocs": "use_mkdocs",
 }
 
 
-def get_existing_project_defaults(project_dir: _Path) -> dict[str, str | bool | int]:
+def get_existing_project_defaults(
+    project_dir: _Path,
+    *,
+    include_fallbacks: bool = True,
+) -> dict[str, str | bool | int]:
     """Infer scaffold prompt defaults from an existing Python project.
 
     Args:
         project_dir: Root directory of the existing project.
+        include_fallbacks: Whether to include generic defaults for undetected settings.
 
     Returns:
         dict[str, str | bool | int]: Defaults inferred from project metadata and files.
@@ -61,41 +68,55 @@ def get_existing_project_defaults(project_dir: _Path) -> dict[str, str | bool | 
     project_name = str(metadata.get("name", project_dir.name))
     package_name = _find_package_name(project_dir, project_name)
     build_system = project_data.get("build-system", {})
-    build_backend = _BACKEND_NAMES.get(
-        str(build_system.get("build-backend", "")),
-        str(_DEFAULTS["build_backend"]),
-    )
+    backend_name = _BACKEND_NAMES.get(str(build_system.get("build-backend", "")))
     tool_config = project_data.get("tool", {})
     dev_packages = _collect_dev_packages(project_data)
 
-    defaults: dict[str, str | bool | int] = {
-        **_DEFAULTS,
-        "project_name": project_name,
-        "package_name": package_name,
-        "command_name": _find_command_name(project_data, project_name),
-        "version": str(metadata.get("version", _DEFAULTS["version"])),
-        "description": str(metadata.get("description", _DEFAULTS["description"])),
-        "requires_python": str(metadata.get("requires-python", _DEFAULTS["requires_python"])),
-        "build_backend": build_backend,
-        "use_console_script": bool(metadata.get("scripts", {})),
-        "use_rez_build": (project_dir / "rez_build").is_dir(),
-        "use_nuke": (project_dir / "nuke").is_dir(),
-    }
+    defaults: dict[str, str | bool | int] = dict(_DEFAULTS) if include_fallbacks else {}
+    defaults.update({"project_name": project_name, "package_name": package_name})
+    scripts = metadata.get("scripts", {})
+    if scripts or include_fallbacks:
+        defaults["command_name"] = _find_command_name(project_data, project_name)
+        defaults["use_console_script"] = bool(scripts)
+    for key in ("version", "description", "requires-python"):
+        if key in metadata:
+            option = "requires_python" if key == "requires-python" else key
+            defaults[option] = str(metadata[key])
+        elif include_fallbacks:
+            option = "requires_python" if key == "requires-python" else key
+            defaults[option] = str(_DEFAULTS[option])
+    if backend_name is not None:
+        defaults["build_backend"] = backend_name
+    elif include_fallbacks:
+        defaults["build_backend"] = str(_DEFAULTS["build_backend"])
+
     for package, option in _FEATURE_TO_PACKAGE.items():
-        defaults[option] = package in dev_packages or package in tool_config
+        detected = package in dev_packages or package in tool_config
+        if detected or include_fallbacks:
+            defaults[option] = detected
+
+    for option, directory in (
+        ("use_rez_build", "rez_build"),
+        ("use_nuke", "nuke"),
+        ("use_mkdocs", "docs"),
+    ):
+        detected = (project_dir / directory).is_dir()
+        if detected or include_fallbacks:
+            defaults[option] = detected
+    if (project_dir / "mkdocs.yml").is_file():
+        defaults["use_mkdocs"] = True
 
     line_lengths = (
         tool_config.get("ruff", {}).get("line-length"),
         tool_config.get("black", {}).get("line-length"),
         tool_config.get("isort", {}).get("line_length"),
     )
-    defaults["line_length"] = next(
-        (int(length) for length in line_lengths if length is not None),
-        int(_DEFAULTS["line_length"]),
-    )
-    defaults["use_pytest"] = bool(defaults["use_pytest"] or (project_dir / "tests").is_dir())
-    defaults["use_nuke"] = bool(defaults["use_nuke"])
-    defaults["use_rez_build"] = bool(defaults["use_rez_build"])
+    line_length = next((int(length) for length in line_lengths if length is not None), None)
+    if line_length is not None or include_fallbacks:
+        defaults["line_length"] = line_length if line_length is not None else int(_DEFAULTS["line_length"])
+    has_tests = (project_dir / "tests").is_dir()
+    if has_tests or include_fallbacks:
+        defaults["use_pytest"] = bool(defaults.get("use_pytest", False) or has_tests)
     return defaults
 
 
@@ -221,7 +242,7 @@ def _merge_pyproject(existing_path: _Path, template_path: _Path) -> bool:
     try:
         existing_document = _tomlkit.parse(existing_path.read_text(encoding="utf-8"))
         template_document = _tomlkit.parse(template_path.read_text(encoding="utf-8"))
-    except _tomlkit.exceptions.ParseError as error:
+    except _ParseError as error:
         raise ValueError(f"Could not merge TOML configuration: {error}") from error
 
     changed = _merge_table(existing_document, template_document)

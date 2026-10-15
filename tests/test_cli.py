@@ -1,3 +1,5 @@
+"""Tests for the scaffold command-line interface and interactive prompts."""
+
 from pathlib import Path
 from typing import Any
 
@@ -96,6 +98,8 @@ def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypat
 
     monkeypatch.setattr(prompt, "_collect_answers", fake_collect_answers)
     monkeypatch.setattr(prompt, "_write_templates", fake_write_templates)
+    monkeypatch.setattr(prompt, "_read_history", lambda: {})
+    monkeypatch.setattr(prompt, "_write_history", lambda _answers: True)
 
     result = CliRunner().invoke(
         prompt.app,
@@ -106,11 +110,152 @@ def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypat
             "--project-name",
             "pbtemp_example",
             "--use-nuke",
+            "--use-mkdocs",
         ],
     )
 
     assert result.exit_code == 0, result.output
-    assert collected_defaults == {"project_name": "pbtemp_example", "use_nuke": True}
+    assert collected_defaults == {
+        "project_name": "pbtemp_example",
+        "use_nuke": True,
+        "use_mkdocs": True,
+    }
+    return None
+
+
+def test_init_uses_history_but_explicit_flags_take_precedence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify saved answers prefill init and explicit options override them.
+
+    Args:
+        tmp_path: Temporary scaffold destination.
+        monkeypatch: Pytest fixture for replacing CLI collaborators.
+
+    Returns:
+        None: Assertions check history and explicit-option precedence.
+    """
+    collected_defaults: dict[str, str | bool | int] = {}
+
+    def fake_collect_answers(*, defaults: dict[str, str | bool | int]) -> dict[str, str | bool | int]:
+        """Record defaults and return sample answers.
+
+        Args:
+            defaults: Effective defaults for the prompt.
+
+        Returns:
+            dict[str, str | bool | int]: Answers for the CLI stub.
+        """
+        collected_defaults.update(defaults)
+        return {"project_name": "explicit-name", "use_nuke": False}
+
+    monkeypatch.setattr(prompt, "_collect_answers", fake_collect_answers)
+    monkeypatch.setattr(prompt, "_write_templates", lambda _answers, output_dir: [])
+    monkeypatch.setattr(
+        prompt,
+        "_read_history",
+        lambda: {"project_name": "remembered-name", "use_nuke": True, "line_length": 88},
+    )
+    monkeypatch.setattr(prompt, "_write_history", lambda _answers: True)
+
+    result = CliRunner().invoke(
+        prompt.app,
+        ["init", "--output-dir", str(tmp_path), "--project-name", "explicit-name", "--no-use-nuke"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert collected_defaults == {
+        "project_name": "explicit-name",
+        "use_nuke": False,
+        "line_length": 88,
+    }
+    return None
+
+
+@pytest.mark.parametrize("history_flag", ["--ignore-history", "--no-history"])
+def test_init_can_ignore_history_for_one_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    history_flag: str,
+) -> None:
+    """Verify the ignore-history option skips remembered prompt values.
+
+    Args:
+        tmp_path: Temporary scaffold destination.
+        monkeypatch: Pytest fixture for replacing CLI collaborators.
+        history_flag: CLI option that disables history loading.
+
+    Returns:
+        None: Assertions check that history was not read.
+    """
+    collected_defaults: dict[str, str | bool | int] = {}
+    saved_answers: dict[str, str | bool | int] = {}
+
+    def fake_collect_answers(*, defaults: dict[str, str | bool | int]) -> dict[str, str | bool | int]:
+        """Record defaults and return sample answers.
+
+        Args:
+            defaults: Effective defaults for the prompt.
+
+        Returns:
+            dict[str, str | bool | int]: Answers for the CLI stub.
+        """
+        collected_defaults.update(defaults)
+        return {"project_name": "fresh-name"}
+
+    def fail_read_history() -> dict[str, str | bool | int]:
+        """Fail if the ignored history is read.
+
+        Returns:
+            dict[str, str | bool | int]: Never returns.
+        """
+        raise AssertionError("history should not be read")
+
+    monkeypatch.setattr(prompt, "_collect_answers", fake_collect_answers)
+    monkeypatch.setattr(prompt, "_write_templates", lambda _answers, output_dir: [])
+    monkeypatch.setattr(prompt, "_read_history", fail_read_history)
+
+    def fake_write_history(answers: dict[str, str | bool | int]) -> bool:
+        """Capture newly entered answers even when history loading is skipped.
+
+        Args:
+            answers: New prompt answers.
+
+        Returns:
+            bool: Always indicates that the fake save succeeded.
+        """
+        saved_answers.update(answers)
+        return True
+
+    monkeypatch.setattr(prompt, "_write_history", fake_write_history)
+
+    result = CliRunner().invoke(
+        prompt.app,
+        ["init", "--output-dir", str(tmp_path), history_flag],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert collected_defaults == {}
+    assert saved_answers == {"project_name": "fresh-name"}
+    return None
+
+
+def test_history_dump_displays_saved_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify the history dump command displays stored values as JSON.
+
+    Args:
+        monkeypatch: Pytest fixture for replacing the history reader.
+
+    Returns:
+        None: Assertions check command output.
+    """
+    monkeypatch.setattr(prompt, "_read_history", lambda: {"project_name": "remembered"})
+
+    result = CliRunner().invoke(prompt.app, ["history", "dump"])
+
+    assert result.exit_code == 0, result.output
+    assert '"project_name": "remembered"' in result.output
     return None
 
 
@@ -127,6 +272,8 @@ def test_prompt_uses_supplied_values_as_question_defaults(
     """
 
     class PromptAnswer:
+        """Stub a Questionary response with a predetermined answer."""
+
         def __init__(self, value: Any) -> None:
             """Create a prompt stub with a predetermined answer.
 
@@ -248,6 +395,8 @@ def test_merge_command_updates_existing_project(tmp_path: Path, monkeypatch: pyt
         return sample_answers
 
     monkeypatch.setattr(prompt, "_collect_answers", fake_collect_answers)
+    monkeypatch.setattr(prompt, "_read_history", lambda: {})
+    monkeypatch.setattr(prompt, "_write_history", lambda _answers: True)
 
     result = CliRunner().invoke(prompt.app, ["merge", "--output-dir", str(tmp_path)])
 

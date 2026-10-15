@@ -69,6 +69,7 @@ def collect_answers(
     selectable = (
         "black",
         "isort",
+        "mkdocs",
         "mypy",
         "nuke",
         "pylint",

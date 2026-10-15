@@ -26,4 +26,20 @@ uv run {{ command_name }}
 ```sh
 uv run python -m {{ package_name }}.main
 ```
+{% endif %}{% if use_mkdocs %}
+## Documentation
+
+This project uses [MkDocs](https://www.mkdocs.org/) with generated API reference documentation.
+
+Preview the documentation locally:
+
+```sh
+uv run mkdocs serve
+```
+
+Build the static site:
+
+```sh
+uv run mkdocs build
+```
 {% endif %}

@@ -111,3 +111,4 @@ out/**
 /.build/
 /build/
 dump.rdb
+.vscode/settings.json
