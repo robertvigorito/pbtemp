@@ -29,10 +29,10 @@ def test_test_build_copies_all_templates_under_dist(tmp_path: Path, monkeypatch:
     assert len(copied_files) == len(get_template_paths())
     assert (project_dir / "pyproject.toml").is_file()
     assert (project_dir / "src" / "pbtemp_test_build" / "main.py").is_file()
-    assert (project_dir / "rez_build" / "package.py").is_file()
+    assert (project_dir / "src" / "rez_build" / "package.py").is_file()
     assert (project_dir / "tests" / "test_main.py").is_file()
-    assert (project_dir / "nuke" / "init.py").is_file()
-    assert (project_dir / "nuke" / "menu.py").is_file()
+    assert (project_dir / "src" / "nuke" / "init.py").is_file()
+    assert (project_dir / "src" / "nuke" / "menu.py").is_file()
     assert not list(project_dir.rglob("*.whl"))
     assert "Copied all" in result.output
     assert "Complete sample project scaffold created" in result.output
@@ -79,10 +79,10 @@ def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypat
             defaults: Defaults passed by the init command.
 
         Returns:
-            dict[str, str | bool | int]: Empty answers for this CLI test.
+            dict[str, str | bool | int]: Project name selected for this CLI test.
         """
         collected_defaults.update(defaults)
-        return {}
+        return {"project_name": "pbtemp_example"}
 
     def fake_write_templates(answers: dict[str, Any], output_dir: Path) -> list[Path]:
         """Stub template writing for the init CLI test.
@@ -159,7 +159,13 @@ def test_init_uses_history_but_explicit_flags_take_precedence(
     monkeypatch.setattr(
         prompt,
         "_read_history",
-        lambda: {"project_name": "remembered-name", "use_nuke": True, "line_length": 88},
+        lambda: {
+            "project_name": "remembered-name",
+            "package_name": "stale_package_name",
+            "command_name": "stale-command-name",
+            "use_nuke": True,
+            "line_length": 88,
+        },
     )
     monkeypatch.setattr(prompt, "_write_history", lambda _answers: True)
 
@@ -171,9 +177,43 @@ def test_init_uses_history_but_explicit_flags_take_precedence(
     assert result.exit_code == 0, result.output
     assert collected_defaults == {
         "project_name": "explicit-name",
+        "package_name": "stale_package_name",
+        "command_name": "stale-command-name",
         "use_nuke": False,
         "line_length": 88,
     }
+    return None
+
+
+def test_init_generates_package_directory_from_final_project_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify init derives the generated package folder from the chosen project name.
+
+    Args:
+        tmp_path: Temporary scaffold destination.
+        monkeypatch: Pytest fixture for replacing prompt collaborators.
+
+    Returns:
+        None: Assertions verify the generated source directory.
+    """
+    answers = {
+        **prompt._DEFAULTS,
+        "project_name": "new-project",
+        "package_name": "stale_package_name",
+        "command_name": "stale-command-name",
+    }
+    monkeypatch.setattr(prompt, "_collect_answers", lambda *, defaults: answers)
+    monkeypatch.setattr(prompt, "_read_history", lambda: {})
+    monkeypatch.setattr(prompt, "_write_history", lambda _answers: True)
+
+    result = CliRunner().invoke(prompt.app, ["init", "--output-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "src" / "new_project" / "__init__.py").is_file()
+    assert not (tmp_path / "src" / "stale_package_name").exists()
+    assert '"new-project"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
     return None
 
 
@@ -241,7 +281,11 @@ def test_init_can_ignore_history_for_one_run(
 
     assert result.exit_code == 0, result.output
     assert collected_defaults == {}
-    assert saved_answers == {"project_name": "fresh-name"}
+    assert saved_answers == {
+        "project_name": "fresh-name",
+        "package_name": "fresh_name",
+        "command_name": "fresh-name",
+    }
     return None
 
 
@@ -347,8 +391,65 @@ def test_prompt_uses_supplied_values_as_question_defaults(
     answers = merger_prompt.collect_answers(defaults={"project_name": "pbtemp_example", "use_nuke": True})
 
     assert text_defaults[0] == "pbtemp_example"
+    assert text_defaults[3] == "120"
     assert answers["package_name"] == "pbtemp_example"
+    assert answers["line_length"] == 120
     assert answers["use_nuke"] is True
+    return None
+
+
+def test_prompt_validates_custom_line_length(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify a custom line length is parsed from the interactive prompt.
+
+    Args:
+        monkeypatch: Pytest fixture for replacing Questionary prompts.
+
+    Returns:
+        None: Assertions verify the parsed value and validation error.
+    """
+    prompt_answers = iter(["sample", "1.0.0", "description", "88"])
+
+    class PromptAnswer:
+        """Stub a Questionary response with a predetermined answer."""
+
+        def __init__(self, value: Any) -> None:
+            """Store a predetermined prompt answer.
+
+            Args:
+                value: Value to return from the prompt.
+
+            Returns:
+                None: The answer is stored.
+            """
+            self.value = value
+
+        def ask(self) -> Any:
+            """Return the stored prompt answer.
+
+            Returns:
+                Any: The configured answer.
+            """
+            return self.value
+
+    monkeypatch.setattr(
+        merger_prompt._questionary,
+        "text",
+        lambda _message, *, default: PromptAnswer(next(prompt_answers)),
+    )
+    monkeypatch.setattr(
+        merger_prompt._questionary,
+        "select",
+        lambda _message, *, choices, default: PromptAnswer(default),
+    )
+    monkeypatch.setattr(
+        merger_prompt._questionary,
+        "checkbox",
+        lambda _message, *, choices: PromptAnswer([choice.value for choice in choices if choice.checked]),
+    )
+
+    answers = merger_prompt.collect_answers()
+
+    assert answers["line_length"] == 88
     return None
 
 

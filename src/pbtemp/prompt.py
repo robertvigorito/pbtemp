@@ -260,6 +260,9 @@ def init_project(
     except ValueError as error:
         raise _typer.BadParameter(str(error)) from error
 
+    project_name = str(answers["project_name"])
+    answers["package_name"] = project_name.replace("-", "_").replace(".", "_").lower()
+    answers["command_name"] = project_name.replace("_", "-").lower()
     written = _write_templates(answers, output_dir=output_dir.expanduser())
     _save_history(answers)
     _typer.echo(f"Created {len(written)} project files in {output_dir.expanduser().resolve()}")

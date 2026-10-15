@@ -13,7 +13,7 @@ DEFAULTS: dict[str, str | bool | int] = {
     "version": "0.1.0",
     "description": "A new Python project",
     "requires_python": ">=3.10",
-    "line_length": 100,
+    "line_length": 120,
     "build_backend": "hatchling",
     "use_console_script": True,
     "use_black": False,

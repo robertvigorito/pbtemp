@@ -53,6 +53,11 @@ This copies every template into a complete sample project under `dist/pbtemp-tes
 
 The generated project includes a `pyproject.toml`, README, Makefile, `.gitignore`, shared coding guidance in `.github/copilot-instructions.md`, and a `src`-style import package with documented functions. MkDocs support is enabled by default and adds the Material for MkDocs theme, a home page, and generated API reference. It starts in dark mode and provides a built-in toggle to switch to light mode, remembering the choice in the browser. Use `mkdocs serve` to preview or `mkdocs build` to build the site; disable documentation with `--no-use-mkdocs`. Optional pytest, Rez, and Nuke support can also be included. When Nuke support is selected, it creates startup/menu scripts and adds the package's `nuke` directory to Rez's `NUKE_PATH`. The package name is normalized from the project name, and the console command is configured to call the generated package's `main()` function.
 
+The generated `pbtemp.toml` controls where template subdirectories are created. By default package
+code goes to `src/{package_name}`, and optional Nuke and Rez support go to `src/nuke` and
+`src/rez_build`. Change the values under `[paths]` to customize those locations. Paths are relative
+to the project root and cannot escape it. `pbtemp merge` uses the same configuration.
+
 ## Development
 
-Run the project's tests with `uv run --group dev pytest`; pytest-sugar formats progress and pytest-cov reports coverage. Check style with `uv run ruff check src tests` and `uv run ruff format --check src tests`. Build and install with `uv build` and `uv pip install .`.
+Run the project's tests with `uv run --group dev pytest`; pytest-sugar formats progress and pytest-cov reports coverage. Apply safe lint fixes and format with `uv run ruff check --fix src tests` and `uv run ruff format src tests`, or use `make format`. The default configured line length is 120 characters. Build and install with `uv build` and `uv pip install .`.

@@ -14,6 +14,7 @@ from tomlkit.items import Array as _Array
 from tomlkit.items import InlineTable as _InlineTable
 from tomlkit.items import Table as _Table
 
+from pbtemp.combine import get_template_path_mappings as _get_template_path_mappings
 from pbtemp.combine import write_templates_to_cwd as _write_templates
 from pbtemp.keyvars import DEFAULTS as _DEFAULTS
 
@@ -102,7 +103,9 @@ def get_existing_project_defaults(
         ("use_nuke", "nuke"),
         ("use_mkdocs", "docs"),
     ):
-        detected = (project_dir / directory).is_dir()
+        mapped_directory = _get_template_path_mappings(project_dir).get(directory, directory)
+        mapped_directory = mapped_directory.replace("{package_name}", package_name)
+        detected = (project_dir / mapped_directory).is_dir()
         if detected or include_fallbacks:
             defaults[option] = detected
     if (project_dir / "mkdocs.yml").is_file():
@@ -152,7 +155,11 @@ def merge_project_templates(
     changed: list[_Path] = []
     with _TemporaryDirectory(prefix="pbtemp-merge-") as temporary_directory:
         template_root = _Path(temporary_directory)
-        rendered_files = _write_templates(answers, output_dir=template_root)
+        rendered_files = _write_templates(
+            answers,
+            output_dir=template_root,
+            config_dir=destination,
+        )
         for rendered_path in rendered_files:
             relative_path = rendered_path.relative_to(template_root)
             existing_path = destination / relative_path

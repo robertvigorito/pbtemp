@@ -1,7 +1,7 @@
 
 package={{ pktemp.package_name }}
 
-.PHONY: docs docs-serve
+.PHONY: docs docs-serve format
 
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
 
@@ -43,12 +43,16 @@ docs: ## build the MkDocs documentation site
 docs-serve: ## preview documentation with live reload
 	uv run --python 3.12 mkdocs serve
 
+format: ## apply safe Ruff fixes and format Python files
+	uv run ruff check --fix src tests
+	uv run ruff format src tests
+
 lint: 
 	$(eval files=$(shell find ./src -type f -name "*.py"))
+	@ruff check $(files)
 	@isort --check-only --color  $(files) --profile black || echo "isort failed" 
 	@black --check $(files) || echo "black failed"
 	@pylint --exit-zero $(files)
-	@ruff check $(files)
 
 check:
 	@mypy ./src

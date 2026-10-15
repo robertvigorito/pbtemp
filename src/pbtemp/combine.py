@@ -1,5 +1,6 @@
 """Render the selected templates into a destination directory."""
 
+import tomllib as _tomllib
 from pathlib import Path as _Path
 from typing import Any as _Any
 
@@ -7,6 +8,12 @@ from jinja2 import Environment as _Environment
 
 from pbtemp.keyvars import get_template_paths as _get_template_paths
 from pbtemp.keyvars import get_template_root as _get_template_root
+
+_DEFAULT_PATH_MAPPINGS = {
+    "package": "src/{package_name}",
+    "nuke": "src/nuke",
+    "rez_build": "",
+}
 
 
 def version_up_on_conflict(path: _Path) -> _Path:
@@ -32,6 +39,7 @@ def write_templates_to_cwd(
     answers: dict[str, _Any],
     prefix: str = "",
     output_dir: _Path | str | None = None,
+    config_dir: _Path | str | None = None,
 ) -> list[_Path]:
     """Render selected templates into the destination directory.
 
@@ -41,6 +49,7 @@ def write_templates_to_cwd(
         answers: Values used to render the Jinja templates.
         prefix: Optional prefix added to each generated filename.
         output_dir: Destination directory; defaults to the current directory.
+        config_dir: Directory containing optional ``pbtemp.toml`` path mappings.
 
     Returns:
         list[Path]: Paths of all files created.
@@ -48,6 +57,8 @@ def write_templates_to_cwd(
     environment = _Environment(autoescape=False, keep_trailing_newline=True)
     destination = (_Path(output_dir) if output_dir is not None else _Path.cwd()).expanduser().resolve()
     destination.mkdir(parents=True, exist_ok=True)
+    configuration_root = _Path(config_dir).expanduser().resolve() if config_dir is not None else destination
+    path_mappings = get_template_path_mappings(configuration_root)
     template_root = _get_template_root()
     written: list[_Path] = []
 
@@ -63,8 +74,10 @@ def write_templates_to_cwd(
             continue
         if relative_path == _Path("mkdocs.yml") and not answers.get("use_mkdocs", False):
             continue
-        if relative_path.parts[0] == "package":
-            relative_path = _Path("src", answers["package_name"], *relative_path.parts[1:])
+        mapped_root = path_mappings.get(relative_path.parts[0])
+        if mapped_root is not None:
+            mapped_root = mapped_root.replace("{package_name}", str(answers["package_name"]))
+            relative_path = _Path(mapped_root, *relative_path.parts[1:])
         if prefix:
             relative_path = relative_path.with_name(f"{prefix}{relative_path.name}")
 
@@ -76,3 +89,39 @@ def write_templates_to_cwd(
         written.append(output_path)
 
     return written
+
+
+def get_template_path_mappings(config_dir: _Path) -> dict[str, str]:
+    """Load and validate user-defined destination paths for template directories.
+
+    Args:
+        config_dir: Directory to check for ``pbtemp.toml``.
+
+    Returns:
+        dict[str, str]: Template directory names mapped to relative output paths.
+
+    Raises:
+        ValueError: If the configuration file or path mappings are invalid.
+    """
+    mappings = dict(_DEFAULT_PATH_MAPPINGS)
+    config_path = config_dir / "pbtemp.toml"
+    if not config_path.is_file():
+        return mappings
+
+    try:
+        configuration = _tomllib.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, _tomllib.TOMLDecodeError) as error:
+        raise ValueError(f"Could not read template path configuration at {config_path}: {error}") from error
+
+    raw_mappings = configuration.get("paths", {})
+    if not isinstance(raw_mappings, dict):
+        raise ValueError("The [paths] section in pbtemp.toml must be a table.")
+
+    for template_dir, output_dir in raw_mappings.items():
+        if not isinstance(template_dir, str) or not isinstance(output_dir, str):
+            raise ValueError("Template path mappings must use string keys and string values.")
+        output_path = _Path(output_dir)
+        if output_path.is_absolute() or ".." in output_path.parts:
+            raise ValueError(f"Template output path must stay within the project: {output_dir!r}.")
+        mappings[template_dir] = output_dir
+    return mappings

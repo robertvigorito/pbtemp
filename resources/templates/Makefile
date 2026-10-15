@@ -1,6 +1,6 @@
 package={{ package_name }}
 
-.PHONY: clean build clean-build clean-pyc clean-test docs docs-serve lint check lint-check install poetry-install test test-all script coverage
+.PHONY: clean build clean-build clean-pyc clean-test docs docs-serve format lint check lint-check install poetry-install test test-all script coverage
 
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
 
@@ -40,6 +40,12 @@ docs: ## build the MkDocs documentation site
 docs-serve: ## preview documentation with live reload
 	uv run mkdocs serve
 {% else %}	@echo "MkDocs support is disabled; enable it when generating the scaffold."
+{% endif %}
+
+format: ## apply safe Ruff fixes and format Python files
+{% if use_ruff %}	ruff check --fix .
+	ruff format .
+{% else %}	@echo "Ruff is disabled; enable it when generating the scaffold."
 {% endif %}
 
 lint:

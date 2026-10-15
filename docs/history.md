@@ -52,7 +52,7 @@ Example output:
 ```json
 {
   "build_backend": "uv_build",
-  "line_length": 100,
+  "line_length": 120,
   "project_name": "widget-tools",
   "use_mkdocs": true,
   "use_nuke": false,

@@ -7,7 +7,7 @@ from pbtemp.combine import write_templates_to_cwd
 from pbtemp.keyvars import DEFAULTS, get_template_root
 
 
-def answers(**overrides: str | bool) -> dict[str, str | bool | int]:
+def answers(**overrides: str | bool | int) -> dict[str, str | bool | int]:
     """Build sample answer values for scaffold tests.
 
     Args:
@@ -77,9 +77,18 @@ def test_generates_project_layout_and_valid_pyproject(tmp_path: Path) -> None:
     assert "mkdocs-material>=9.6" in development_dependencies
     assert "name: material" in (tmp_path / "mkdocs.yml").read_text()
     assert "Material for MkDocs" in (tmp_path / "README.md").read_text()
+    assert project["tool"]["ruff"]["line-length"] == 120
+    assert "ruff check --fix ." in (tmp_path / "Makefile").read_text()
+    assert "ruff format ." in (tmp_path / "Makefile").read_text()
+    assert "120-character" in (tmp_path / ".github" / "copilot-instructions.md").read_text()
+    assert project["tool"]["ruff"]["line-length"] == 120
     assert "pytest-sugar" not in development_dependencies
     assert "pytest-cov" not in development_dependencies
-    assert len(written) == 11
+    path_config = tomllib.loads((tmp_path / "pbtemp.toml").read_text(encoding="utf-8"))
+    assert path_config["paths"]["package"] == "src/{package_name}"
+    assert path_config["paths"]["nuke"] == "src/nuke"
+    assert path_config["paths"]["rez_build"] == "src/rez_build"
+    assert len(written) == 12
     return None
 
 
@@ -132,6 +141,60 @@ def test_pytest_sugar_and_coverage_are_optional(tmp_path: Path) -> None:
     pytest_options = project["tool"]["pytest"]["ini_options"]["addopts"]
     assert "--cov=sample_project" in pytest_options
     assert "--cov-report=term-missing" in pytest_options
+    return None
+
+
+def test_line_length_is_shared_by_selected_formatters_and_linters(tmp_path: Path) -> None:
+    """Verify the selected line length configures each enabled formatter and linter.
+
+    Args:
+        tmp_path: Temporary destination for generated files.
+
+    Returns:
+        None: Assertions check all supported line-length settings.
+    """
+    write_templates_to_cwd(
+        answers(
+            line_length=88,
+            use_black=True,
+            use_isort=True,
+            use_pylint=True,
+            use_ruff=True,
+        ),
+        output_dir=tmp_path,
+    )
+
+    project = tomllib.loads((tmp_path / "pyproject.toml").read_text(encoding="utf-8"))
+    assert project["tool"]["black"]["line-length"] == 88
+    assert project["tool"]["isort"]["line_length"] == 88
+    assert project["tool"]["pylint"]["format"]["max-line-length"] == 88
+    assert project["tool"]["ruff"]["line-length"] == 88
+    return None
+
+
+def test_project_path_configuration_overrides_template_locations(tmp_path: Path) -> None:
+    """Verify project configuration controls template subdirectory destinations.
+
+    Args:
+        tmp_path: Temporary destination containing a custom pbtemp config.
+
+    Returns:
+        None: Assertions check custom output locations.
+    """
+    (tmp_path / "pbtemp.toml").write_text(
+        '[paths]\npackage = "lib/{package_name}"\nnuke = "tools/nuke"\nrez_build = "build/rez"\n',
+        encoding="utf-8",
+    )
+
+    write_templates_to_cwd(
+        answers(use_nuke=True, use_rez_build=True),
+        output_dir=tmp_path,
+    )
+
+    assert (tmp_path / "lib" / "sample_project" / "main.py").is_file()
+    assert (tmp_path / "tools" / "nuke" / "init.py").is_file()
+    assert (tmp_path / "build" / "rez" / "package.py").is_file()
+    assert (tmp_path / "pbtemp1.toml").is_file()
     return None
 
 
@@ -189,9 +252,9 @@ def test_rez_templates_are_copied_only_when_selected(tmp_path: Path) -> None:
     """
     write_templates_to_cwd(answers(use_rez_build=True), output_dir=tmp_path)
 
-    assert (tmp_path / "rez_build" / "package.py").is_file()
-    assert (tmp_path / "rez_build" / "rezbuild.py").is_file()
-    assert 'env.NUKE_PATH.append("{root}/nuke")' not in (tmp_path / "rez_build" / "package.py").read_text()
+    assert (tmp_path / "src" / "rez_build" / "package.py").is_file()
+    assert (tmp_path / "src" / "rez_build" / "rezbuild.py").is_file()
+    assert 'env.NUKE_PATH.append("{root}/src/nuke")' not in (tmp_path / "src" / "rez_build" / "package.py").read_text()
     return None
 
 
@@ -206,13 +269,13 @@ def test_nuke_templates_and_rez_path_are_added_when_selected(tmp_path: Path) -> 
     """
     write_templates_to_cwd(answers(use_nuke=True, use_rez_build=True), output_dir=tmp_path)
 
-    assert (tmp_path / "nuke" / "init.py").is_file()
-    assert (tmp_path / "nuke" / "menu.py").is_file()
-    assert "sample-project" in (tmp_path / "nuke" / "menu.py").read_text()
-    rez_package = (tmp_path / "rez_build" / "package.py").read_text()
-    assert 'env.NUKE_PATH.append("{root}/nuke")' in rez_package
+    assert (tmp_path / "src" / "nuke" / "init.py").is_file()
+    assert (tmp_path / "src" / "nuke" / "menu.py").is_file()
+    assert "sample-project" in (tmp_path / "src" / "nuke" / "menu.py").read_text()
+    rez_package = (tmp_path / "src" / "rez_build" / "package.py").read_text()
+    assert 'env.NUKE_PATH.append("{root}/src/nuke")' in rez_package
     assert "noqa: F821" in rez_package
-    assert "noqa: I001" in (tmp_path / "nuke" / "menu.py").read_text()
+    assert "noqa: I001" in (tmp_path / "src" / "nuke" / "menu.py").read_text()
     return None
 
 

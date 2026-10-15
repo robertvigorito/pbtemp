@@ -45,3 +45,18 @@ Build the static site:
 uv run mkdocs build
 ```
 {% endif %}
+
+{% if use_ruff %}## Code formatting
+
+Use Ruff to apply safe lint fixes and format Python files:
+
+```sh
+uv run ruff check --fix .
+uv run ruff format .
+```
+{% endif %}
+
+## Template paths
+
+Edit the `[paths]` section in `pbtemp.toml` to change where generated package, Nuke, and Rez
+directories are placed. Paths are relative to the project root.

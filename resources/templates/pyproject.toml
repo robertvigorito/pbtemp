@@ -54,6 +54,9 @@ strict = true
 {% endif %}{% if use_pylint %}[tool.pylint.main]
 py-version = "3.10"
 
+[tool.pylint.format]
+max-line-length = {{ line_length }}
+
 {% endif %}{% if use_ruff %}[tool.ruff]
 line-length = {{ line_length }}
 

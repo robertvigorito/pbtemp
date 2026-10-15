@@ -56,6 +56,18 @@ def collect_answers(
     if not _re.fullmatch(r"\d+(?:\.\d+)*(?:[a-zA-Z0-9.+-]*)", str(answers["version"])):
         raise ValueError("Version must be a valid numeric version, such as 0.1.0.")
 
+    line_length_answer = _questionary.text(
+        "Maximum line length for formatters and linters:",
+        default=str(prompt_defaults["line_length"]),
+    ).ask()
+    try:
+        line_length = int(str(_require_answer(line_length_answer)).strip())
+    except ValueError as error:
+        raise ValueError("Line length must be a positive integer.") from error
+    if line_length < 1:
+        raise ValueError("Line length must be a positive integer.")
+    answers["line_length"] = line_length
+
     if prompt_defaults["build_backend"] not in _BUILD_BACKENDS:
         raise ValueError(f"Build backend must be one of: {', '.join(_BUILD_BACKENDS)}.")
 
@@ -109,5 +121,4 @@ def collect_answers(
         )
     )
     answers["requires_python"] = str(prompt_defaults["requires_python"])
-    answers["line_length"] = int(prompt_defaults["line_length"])
     return answers

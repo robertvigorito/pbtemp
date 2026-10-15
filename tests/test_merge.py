@@ -30,7 +30,7 @@ def test_existing_project_metadata_and_features_become_defaults(tmp_path: Path) 
     package_dir.mkdir(parents=True)
     (package_dir / "__init__.py").write_text("", encoding="utf-8")
     (tmp_path / "tests").mkdir()
-    (tmp_path / "nuke").mkdir()
+    (tmp_path / "src" / "nuke").mkdir(parents=True)
     (tmp_path / "docs").mkdir()
 
     defaults = get_existing_project_defaults(tmp_path)
@@ -67,8 +67,7 @@ def test_merge_detects_pytest_addon_dependencies(tmp_path: Path) -> None:
         None: Assertions verify add-on defaults.
     """
     (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "sample"\n'
-        '[dependency-groups]\ndev = ["pytest-sugar>=1", "pytest-cov>=6"]\n',
+        '[project]\nname = "sample"\n[dependency-groups]\ndev = ["pytest-sugar>=1", "pytest-cov>=6"]\n',
         encoding="utf-8",
     )
 
@@ -139,8 +138,8 @@ def test_merge_preserves_project_values_and_adds_missing_templates(tmp_path: Pat
     assert existing_main.read_text(encoding="utf-8") == "# keep the user's implementation\n"
     assert (package_dir / "__init__.py").is_file()
     assert (tmp_path / "tests" / "test_main.py").is_file()
-    assert (tmp_path / "rez_build" / "package.py").is_file()
-    assert (tmp_path / "nuke" / "init.py").is_file()
+    assert (tmp_path / "src" / "rez_build" / "package.py").is_file()
+    assert (tmp_path / "src" / "nuke" / "init.py").is_file()
     assert "custom-cache/" in (tmp_path / ".gitignore").read_text(encoding="utf-8")
     merged_makefile = (tmp_path / "Makefile").read_text(encoding="utf-8")
     assert "existing make targets" in merged_makefile

@@ -27,6 +27,11 @@ pbtemp init -o /work/new-library
 The command prompts for project name, version, description, build backend, and optional tools. The
 selected options determine which configuration and feature files are generated. If an output file
 already exists, the generator keeps it and creates a numbered sibling rather than overwriting it.
+Template directories are placed according to the project-local `pbtemp.toml` path map: package code
+defaults to `src/{package_name}`, while Nuke and Rez support default to `src/nuke` and
+`src/rez_build`. Top-level template files and other directories retain their template-relative
+locations. Edit `[paths]` in `pbtemp.toml` to customize these destinations; paths must remain inside
+the project directory. The same map is respected by `merge`.
 
 ### Prefilling prompts with terminal options
 
@@ -54,7 +59,7 @@ Available metadata options:
 | `--description TEXT` | Default short project description. |
 | `--build-backend NAME` | Default backend: `hatchling`, `uv_build`, `setuptools`, `flit`, `pdm`, or `poetry`. |
 | `--requires-python SPEC` | Default Python compatibility requirement, such as `">=3.12"`. |
-| `--line-length N` | Default line length for selected formatter/linter configuration. |
+| `--line-length N` | Prefill the interactive line-length choice (120 by default). The chosen value is applied to selected Black, isort, Pylint, and Ruff configurations. |
 
 Feature flags also preselect the interactive checklist. Each boolean has a positive and negative
 form; the negative form explicitly disables a feature even if history enabled it:
