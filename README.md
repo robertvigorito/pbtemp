@@ -26,6 +26,14 @@ pbtemp init --project-name pbtemp_example --use-nuke
 
 These values become the defaults shown in the prompts; the answers can still be changed interactively. Boolean options also support `--no-use-...` forms.
 
+Merge template configuration into an existing project with:
+
+```sh
+pbtemp merge --output-dir .
+```
+
+The merge command uses existing project metadata and detected features as prompt defaults. It preserves existing TOML values and build-system configuration, adds missing template settings and development dependencies, extends `.gitignore` and existing Makefiles without replacing their targets, and only copies other files that do not already exist.
+
 To verify that every bundled template is copied and create a complete sample project, run:
 
 ```sh

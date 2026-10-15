@@ -7,6 +7,8 @@ import typer as _typer
 from pbtemp.combine import write_templates_to_cwd as _write_templates
 from pbtemp.keyvars import DEFAULTS as _DEFAULTS
 from pbtemp.keyvars import get_template_paths as _get_template_paths
+from pbtemp.merge import get_existing_project_defaults as _get_existing_project_defaults
+from pbtemp.merge import merge_project_templates as _merge_project_templates
 from pbtemp.merger_prompt import collect_answers as _collect_answers
 
 app = _typer.Typer(
@@ -190,6 +192,39 @@ def init_project(
     _typer.echo(f"Created {len(written)} project files in {output_dir.expanduser().resolve()}")
     for path in written:
         _typer.echo(f"  {path.relative_to(output_dir.expanduser().resolve())}")
+    return True
+
+
+@app.command("merge")
+def merge_project(output_dir: _Path = _OUTPUT_DIR_OPTION) -> bool:
+    """Merge current templates into an existing Python project.
+
+    Existing pyproject settings are preserved while missing template configuration
+    and dependencies are added. Other existing files are not overwritten.
+
+    Args:
+        output_dir: Root directory of the existing project.
+
+    Returns:
+        bool: ``True`` after the project has been merged.
+
+    Raises:
+        typer.Abort: If the interactive feature prompt is cancelled.
+        typer.BadParameter: If the directory lacks valid Python project metadata.
+    """
+    project_dir = output_dir.expanduser().resolve()
+    try:
+        defaults = _get_existing_project_defaults(project_dir)
+        answers = _collect_answers(defaults=defaults)
+        changed = _merge_project_templates(answers=answers, project_dir=project_dir)
+    except KeyboardInterrupt as error:
+        raise _typer.Abort() from error
+    except (FileNotFoundError, ValueError) as error:
+        raise _typer.BadParameter(str(error)) from error
+
+    _typer.echo(f"Merged template configuration and added {len(changed)} files in {project_dir}.")
+    for path in changed:
+        _typer.echo(f"  {path.relative_to(project_dir)}")
     return True
 
 

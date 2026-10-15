@@ -93,8 +93,18 @@ def collect_answers(
     for name in selectable:
         answers[f"use_{name}"] = name in selected_names
 
-    answers["package_name"] = _re.sub(r"[-.]", "_", str(answers["project_name"])).lower()
-    answers["command_name"] = str(answers["project_name"]).replace("_", "-").lower()
+    answers["package_name"] = str(
+        prompt_defaults.get(
+            "package_name",
+            _re.sub(r"[-.]", "_", str(answers["project_name"])).lower(),
+        )
+    )
+    answers["command_name"] = str(
+        prompt_defaults.get(
+            "command_name",
+            str(answers["project_name"]).replace("_", "-").lower(),
+        )
+    )
     answers["requires_python"] = str(prompt_defaults["requires_python"])
     answers["line_length"] = int(prompt_defaults["line_length"])
     return answers

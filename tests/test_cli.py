@@ -199,3 +199,60 @@ def test_prompt_uses_supplied_values_as_question_defaults(
     assert answers["package_name"] == "pbtemp_example"
     assert answers["use_nuke"] is True
     return None
+
+
+def test_merge_command_updates_existing_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify the merge command preserves and extends an existing project.
+
+    Args:
+        tmp_path: Temporary existing-project directory.
+        monkeypatch: Pytest fixture for supplying non-interactive answers.
+
+    Returns:
+        None: Assertions check the command output and merged project files.
+    """
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "existing-app"\nversion = "2.0.0"\n',
+        encoding="utf-8",
+    )
+    sample_answers: dict[str, str | bool | int] = {
+        "project_name": "existing-app",
+        "package_name": "existing_app",
+        "command_name": "existing-app",
+        "version": "0.1.0",
+        "description": "Existing project",
+        "requires_python": ">=3.12",
+        "line_length": 100,
+        "build_backend": "hatchling",
+        "use_console_script": False,
+        "use_black": False,
+        "use_isort": False,
+        "use_mypy": False,
+        "use_nuke": False,
+        "use_pylint": False,
+        "use_pytest": True,
+        "use_ruff": True,
+        "use_rez_build": False,
+    }
+
+    def fake_collect_answers(*, defaults: dict[str, str | bool | int]) -> dict[str, str | bool | int]:
+        """Return sample answers while checking metadata was inferred.
+
+        Args:
+            defaults: Defaults inferred from the existing project.
+
+        Returns:
+            dict[str, str | bool | int]: Answers for a test package merge.
+        """
+        assert defaults["project_name"] == "existing-app"
+        return sample_answers
+
+    monkeypatch.setattr(prompt, "_collect_answers", fake_collect_answers)
+
+    result = CliRunner().invoke(prompt.app, ["merge", "--output-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "Merged template configuration" in result.output
+    assert (tmp_path / "src" / "existing_app" / "main.py").is_file()
+    assert (tmp_path / "tests" / "test_main.py").is_file()
+    return None
