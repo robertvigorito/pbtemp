@@ -74,6 +74,8 @@ def collect_answers(
         "nuke",
         "pylint",
         "pytest",
+        "pytest_sugar",
+        "coverage",
         "ruff",
         "rez_build",
         "console_script",

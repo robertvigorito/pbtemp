@@ -57,6 +57,28 @@ def test_existing_project_metadata_and_features_become_defaults(tmp_path: Path) 
     return None
 
 
+def test_merge_detects_pytest_addon_dependencies(tmp_path: Path) -> None:
+    """Infer pytest add-on options from existing development dependencies.
+
+    Args:
+        tmp_path: Temporary project root.
+
+    Returns:
+        None: Assertions verify add-on defaults.
+    """
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "sample"\n'
+        '[dependency-groups]\ndev = ["pytest-sugar>=1", "pytest-cov>=6"]\n',
+        encoding="utf-8",
+    )
+
+    defaults = get_existing_project_defaults(tmp_path, include_fallbacks=False)
+
+    assert defaults["use_pytest_sugar"] is True
+    assert defaults["use_coverage"] is True
+    return None
+
+
 def test_merge_preserves_project_values_and_adds_missing_templates(tmp_path: Path) -> None:
     """Merge configuration and absent files without replacing existing source.
 

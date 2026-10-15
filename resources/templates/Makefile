@@ -63,7 +63,7 @@ poetry-install: clean
 
 test: ## run tests quickly with the default Python
 	$(MAKE) poetry-install
-	pytest --cov=$(package) --cov-report=term-missing --cov-fail-under=70 --cov-config=.coveragerc --cov-report=html ./tests
+	pytest ./tests
 
 test-all: ## run tests on every Python version with tox
 	tox

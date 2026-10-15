@@ -111,6 +111,8 @@ def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypat
             "pbtemp_example",
             "--use-nuke",
             "--use-mkdocs",
+            "--use-pytest-sugar",
+            "--use-coverage",
         ],
     )
 
@@ -119,6 +121,8 @@ def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypat
         "project_name": "pbtemp_example",
         "use_nuke": True,
         "use_mkdocs": True,
+        "use_pytest_sugar": True,
+        "use_coverage": True,
     }
     return None
 

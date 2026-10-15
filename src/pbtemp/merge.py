@@ -31,6 +31,8 @@ _FEATURE_TO_PACKAGE = {
     "mypy": "use_mypy",
     "pylint": "use_pylint",
     "pytest": "use_pytest",
+    "pytest-sugar": "use_pytest_sugar",
+    "pytest-cov": "use_coverage",
     "ruff": "use_ruff",
     "mkdocs": "use_mkdocs",
 }

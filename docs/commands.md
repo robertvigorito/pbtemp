@@ -69,13 +69,15 @@ form; the negative form explicitly disables a feature even if history enabled it
 | `--use-nuke` | `--no-use-nuke` | Add Nuke startup and menu scripts. |
 | `--use-pylint` | `--no-use-pylint` | Configure Pylint. |
 | `--use-pytest` | `--no-use-pytest` | Add pytest config and example tests. |
+| `--use-pytest-sugar` | `--no-use-pytest-sugar` | Add pytest-sugar's readable test progress output. |
+| `--use-coverage` | `--no-use-coverage` | Add pytest-cov and enable coverage reports when running pytest. |
 | `--use-ruff` | `--no-use-ruff` | Configure Ruff. |
 | `--use-rez-build` | `--no-use-rez-build` | Add Rez package/build support. |
 
 Example: create a project with documentation, tests, and Ruff, but without a console script:
 
 ```sh
-pbtemp init --project-name widget-tools --use-mkdocs --use-pytest --use-ruff --no-use-console-script
+pbtemp init --project-name widget-tools --use-mkdocs --use-pytest --use-pytest-sugar --use-coverage --use-ruff --no-use-console-script
 ```
 
 `--ignore-history` (also accepted as `--no-history`) ignores saved choices for this invocation.

@@ -21,6 +21,8 @@ dev = [
     "mkdocs-material>=9.6",
     "mkdocstrings[python]>=0.27",
     "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "pytest-sugar>=1.0",
     "ruff>=0.11.0",
 ]
 
@@ -33,6 +35,7 @@ select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["-ra", "--cov=pbtemp", "--cov-report=term-missing"]
 
 [project.scripts]
 pbtemp = "pbtemp:main"

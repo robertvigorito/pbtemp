@@ -55,4 +55,4 @@ The generated project includes a `pyproject.toml`, README, Makefile, `.gitignore
 
 ## Development
 
-Run the project's tests with `uv run --group dev pytest`. Check style with `uv run ruff check src tests` and `uv run ruff format --check src tests`. Build and install with `uv build` and `uv pip install .`.
+Run the project's tests with `uv run --group dev pytest`; pytest-sugar formats progress and pytest-cov reports coverage. Check style with `uv run ruff check src tests` and `uv run ruff format --check src tests`. Build and install with `uv build` and `uv pip install .`.

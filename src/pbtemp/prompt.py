@@ -41,6 +41,8 @@ _TEST_BUILD_ANSWERS: dict[str, str | bool | int] = {
     "use_mypy": True,
     "use_pylint": True,
     "use_pytest": True,
+    "use_pytest_sugar": True,
+    "use_coverage": True,
     "use_ruff": True,
     "use_rez_build": True,
     "use_nuke": True,
@@ -168,6 +170,16 @@ def init_project(
         "--use-pytest/--no-use-pytest",
         help="Default whether to include pytest.",
     ),
+    use_pytest_sugar: bool | None = _typer.Option(
+        None,
+        "--use-pytest-sugar/--no-use-pytest-sugar",
+        help="Default whether to include pytest-sugar output formatting.",
+    ),
+    use_coverage: bool | None = _typer.Option(
+        None,
+        "--use-coverage/--no-use-coverage",
+        help="Default whether to include pytest-cov and enable coverage reporting.",
+    ),
     use_ruff: bool | None = _typer.Option(
         None,
         "--use-ruff/--no-use-ruff",
@@ -203,6 +215,8 @@ def init_project(
         use_nuke: Default Nuke support selection.
         use_pylint: Default Pylint selection.
         use_pytest: Default pytest selection.
+        use_pytest_sugar: Default pytest-sugar selection.
+        use_coverage: Default coverage reporting selection.
         use_ruff: Default Ruff selection.
         use_rez_build: Default Rez support selection.
         ignore_history: Whether to skip remembered prompt values for this run.
@@ -231,6 +245,8 @@ def init_project(
             "use_nuke": use_nuke,
             "use_pylint": use_pylint,
             "use_pytest": use_pytest,
+            "use_pytest_sugar": use_pytest_sugar,
+            "use_coverage": use_coverage,
             "use_ruff": use_ruff,
             "use_rez_build": use_rez_build,
         }.items()

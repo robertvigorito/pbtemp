@@ -33,10 +33,12 @@ dev = [
 {% endif %}{% if use_pylint %}    "pylint>=3.2",
 {% endif %}{% if use_pytest %}    "pytest>=8.0",
 {% endif %}{% if use_ruff %}    "ruff>=0.5",
+{% endif %}{% if use_pytest_sugar %}    "pytest-sugar>=1.0",
+{% endif %}{% if use_coverage %}    "pytest-cov>=6.0",
 {% endif %}]
 {% if use_pytest %}[tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+addopts = ["-ra"{% if use_coverage %}, "--cov={{ package_name }}", "--cov-report=term-missing"{% endif %}]
 
 {% endif %}{% if use_black %}[tool.black]
 line-length = {{ line_length }}

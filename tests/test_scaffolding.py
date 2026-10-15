@@ -77,6 +77,8 @@ def test_generates_project_layout_and_valid_pyproject(tmp_path: Path) -> None:
     assert "mkdocs-material>=9.6" in development_dependencies
     assert "name: material" in (tmp_path / "mkdocs.yml").read_text()
     assert "Material for MkDocs" in (tmp_path / "README.md").read_text()
+    assert "pytest-sugar" not in development_dependencies
+    assert "pytest-cov" not in development_dependencies
     assert len(written) == 11
     return None
 
@@ -105,6 +107,31 @@ def test_mkdocs_templates_are_optional_and_configured(tmp_path: Path) -> None:
     assert (tmp_path / "docs" / "index.md").is_file()
     assert "::: sample_project.main" in (tmp_path / "docs" / "api.md").read_text()
     assert "uv run mkdocs serve" in (tmp_path / "docs" / "index.md").read_text()
+    return None
+
+
+def test_pytest_sugar_and_coverage_are_optional(tmp_path: Path) -> None:
+    """Verify selected pytest add-ons are installed and coverage is configured.
+
+    Args:
+        tmp_path: Temporary destination for generated files.
+
+    Returns:
+        None: Assertions check selected dependencies and pytest options.
+    """
+    write_templates_to_cwd(
+        answers(use_pytest_sugar=True, use_coverage=True),
+        output_dir=tmp_path,
+    )
+
+    project = tomllib.loads((tmp_path / "pyproject.toml").read_text(encoding="utf-8"))
+    dependencies = project["dependency-groups"]["dev"]
+    assert "pytest>=8.0" in dependencies
+    assert "pytest-sugar>=1.0" in dependencies
+    assert "pytest-cov>=6.0" in dependencies
+    pytest_options = project["tool"]["pytest"]["ini_options"]["addopts"]
+    assert "--cov=sample_project" in pytest_options
+    assert "--cov-report=term-missing" in pytest_options
     return None
 
 
