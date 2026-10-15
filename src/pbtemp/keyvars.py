@@ -68,7 +68,5 @@ def get_variable_mapping() -> dict[str, str | bool | int | list[str]]:
         parsed = environment.parse(template_path.read_text(encoding="utf-8"))
         variables.update(_jinja2_meta.find_undeclared_variables(parsed))
 
-    mapping: dict[str, str | bool | int | list[str]] = {
-        name: DEFAULTS.get(name, "") for name in sorted(variables)
-    }
+    mapping: dict[str, str | bool | int | list[str]] = {name: DEFAULTS.get(name, "") for name in sorted(variables)}
     return mapping

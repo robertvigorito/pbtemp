@@ -63,8 +63,8 @@ def init_project(
         _typer.echo(f"  {path.relative_to(output_dir.expanduser().resolve())}")
 
 
-@app.command("test_build")
-def test_build() -> None:
+@app.command("build-temp")
+def build_temp() -> None:
     """Generate a fully featured sample scaffold under dist/ without packaging it."""
     template_count = len(_get_template_paths())
     distribution_dir = _Path.cwd() / "dist"
@@ -78,8 +78,7 @@ def test_build() -> None:
     written = _write_templates(_TEST_BUILD_ANSWERS, output_dir=output_dir)
     if len(written) != template_count or any(not path.is_file() for path in written):
         _typer.echo(
-            f"Scaffold copy incomplete: expected {template_count} files, "
-            f"found {len(written)}.",
+            f"Scaffold copy incomplete: expected {template_count} files, found {len(written)}.",
             err=True,
         )
         raise _typer.Exit(code=1)

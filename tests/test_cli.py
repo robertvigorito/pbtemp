@@ -8,7 +8,7 @@ from pbtemp.keyvars import get_template_paths
 
 def test_test_build_copies_all_templates_under_dist(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(prompt.app, ["test_build"])
+    result = CliRunner().invoke(prompt.app, ["build-temp"])
 
     assert result.exit_code == 0, result.output
     project_dir = tmp_path / "dist" / "pbtemp-test-build"
@@ -27,8 +27,8 @@ def test_test_build_uses_new_directory_on_repeated_runs(tmp_path: Path, monkeypa
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
 
-    assert runner.invoke(prompt.app, ["test_build"]).exit_code == 0
-    result = runner.invoke(prompt.app, ["test_build"])
+    assert runner.invoke(prompt.app, ["build-temp"]).exit_code == 0
+    result = runner.invoke(prompt.app, ["build-temp"])
 
     assert result.exit_code == 0, result.output
     assert (tmp_path / "dist" / "pbtemp-test-build-1" / "pyproject.toml").is_file()

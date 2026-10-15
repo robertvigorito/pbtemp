@@ -21,7 +21,7 @@ pbtemp init --output-dir ../new-project
 To verify that every bundled template is copied and the generated project builds, run:
 
 ```sh
-pbtemp test_build
+pbtemp build-temp
 ```
 
 This copies every template into a complete sample project under `dist/pbtemp-test-build`. It creates a project directory rather than a wheel; if that directory already exists, a numbered sibling is used.
