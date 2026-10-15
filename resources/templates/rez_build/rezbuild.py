@@ -5,7 +5,12 @@ import shutil
 from pathlib import Path
 
 
-def build() -> None:
+def build() -> bool:
+    """Install or link the generated package into the Rez package.
+
+    Returns:
+        bool: ``True`` after the package is installed or linked.
+    """
     source = Path(os.environ["REZ_BUILD_SOURCE_PATH"]).resolve()
     install = Path(os.environ["REZ_BUILD_INSTALL_PATH"]).resolve()
     target = install / "python" / "{{ package_name }}"
@@ -22,6 +27,7 @@ def build() -> None:
         shutil.copytree(source_package, target)
     else:
         target.symlink_to(source_package, target_is_directory=True)
+    return True
 
 
 if __name__ == "__main__":

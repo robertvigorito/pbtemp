@@ -1,13 +1,23 @@
 from pathlib import Path
 from typing import Any
 
+import pytest
 from typer.testing import CliRunner
 
 from pbtemp import merger_prompt, prompt
 from pbtemp.keyvars import get_template_paths
 
 
-def test_test_build_copies_all_templates_under_dist(tmp_path: Path, monkeypatch) -> None:
+def test_test_build_copies_all_templates_under_dist(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify the sample command copies every bundled template.
+
+    Args:
+        tmp_path: Temporary working directory for generated files.
+        monkeypatch: Pytest fixture for changing the current directory.
+
+    Returns:
+        None: Assertions check the generated scaffold.
+    """
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(prompt.app, ["build-temp"])
 
@@ -24,9 +34,19 @@ def test_test_build_copies_all_templates_under_dist(tmp_path: Path, monkeypatch)
     assert not list(project_dir.rglob("*.whl"))
     assert "Copied all" in result.output
     assert "Complete sample project scaffold created" in result.output
+    return None
 
 
-def test_test_build_uses_new_directory_on_repeated_runs(tmp_path: Path, monkeypatch) -> None:
+def test_test_build_uses_new_directory_on_repeated_runs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify repeated sample generations preserve earlier output.
+
+    Args:
+        tmp_path: Temporary working directory for generated files.
+        monkeypatch: Pytest fixture for changing the current directory.
+
+    Returns:
+        None: Assertions check the numbered output directory.
+    """
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
 
@@ -35,17 +55,47 @@ def test_test_build_uses_new_directory_on_repeated_runs(tmp_path: Path, monkeypa
 
     assert result.exit_code == 0, result.output
     assert (tmp_path / "dist" / "pbtemp-test-build-1" / "pyproject.toml").is_file()
+    return None
 
 
-def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypatch) -> None:
+def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify init CLI flags become answer-collection defaults.
+
+    Args:
+        tmp_path: Temporary scaffold destination.
+        monkeypatch: Pytest fixture for replacing CLI collaborators.
+
+    Returns:
+        None: Assertions check the collected defaults.
+    """
     collected_defaults: dict[str, str | bool | int] = {}
 
     def fake_collect_answers(*, defaults: dict[str, str | bool | int]) -> dict[str, str | bool | int]:
+        """Record defaults and provide empty sample answers.
+
+        Args:
+            defaults: Defaults passed by the init command.
+
+        Returns:
+            dict[str, str | bool | int]: Empty answers for this CLI test.
+        """
         collected_defaults.update(defaults)
         return {}
 
+    def fake_write_templates(answers: dict[str, Any], output_dir: Path) -> list[Path]:
+        """Stub template writing for the init CLI test.
+
+        Args:
+            answers: Collected sample answers.
+            output_dir: Requested destination directory.
+
+        Returns:
+            list[Path]: No paths, since this stub writes no files.
+        """
+        return []
+
     monkeypatch.setattr(prompt, "_collect_answers", fake_collect_answers)
-    monkeypatch.setattr(prompt, "_write_templates", lambda answers, output_dir: [])
+    monkeypatch.setattr(prompt, "_write_templates", fake_write_templates)
 
     result = CliRunner().invoke(
         prompt.app,
@@ -61,27 +111,81 @@ def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypat
 
     assert result.exit_code == 0, result.output
     assert collected_defaults == {"project_name": "pbtemp_example", "use_nuke": True}
+    return None
 
 
-def test_prompt_uses_supplied_values_as_question_defaults(monkeypatch) -> None:
+def test_prompt_uses_supplied_values_as_question_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify supplied values prefill text, select, and checkbox prompts.
+
+    Args:
+        monkeypatch: Pytest fixture for replacing questionary prompts.
+
+    Returns:
+        None: Assertions check prompt defaults and collected answers.
+    """
+
     class PromptAnswer:
         def __init__(self, value: Any) -> None:
-            self.value = value
+            """Create a prompt stub with a predetermined answer.
+
+            Args:
+                value: Value returned by ``ask``.
+
+            Returns:
+                None: The value is stored for the prompt stub.
+            """
+            self.value: Any = value
+            return None
 
         def ask(self) -> Any:
+            """Return the predetermined answer.
+
+            Returns:
+                Any: The configured answer.
+            """
             return self.value
 
     text_defaults: list[str] = []
 
     def fake_text(_message: str, *, default: str) -> PromptAnswer:
+        """Build a text prompt stub using its default value.
+
+        Args:
+            _message: Prompt text, unused by this test double.
+            default: Text value to return from the prompt.
+
+        Returns:
+            PromptAnswer: Stub containing the default text.
+        """
         text_defaults.append(default)
         return PromptAnswer(default)
 
     def fake_select(_message: str, *, choices: list[str], default: str) -> PromptAnswer:
+        """Build a select prompt stub using its default choice.
+
+        Args:
+            _message: Prompt text, unused by this test double.
+            choices: Available choices.
+            default: Selected default value.
+
+        Returns:
+            PromptAnswer: Stub containing the default choice.
+        """
         assert default in choices
         return PromptAnswer(default)
 
     def fake_checkbox(_message: str, *, choices: list[Any]) -> PromptAnswer:
+        """Build a checkbox stub from checked options.
+
+        Args:
+            _message: Prompt text, unused by this test double.
+            choices: Checkbox choices, some of which are checked.
+
+        Returns:
+            PromptAnswer: Stub containing the checked option names.
+        """
         checked_values = [choice.value for choice in choices if choice.checked]
         return PromptAnswer(checked_values)
 
@@ -94,3 +198,4 @@ def test_prompt_uses_supplied_values_as_question_defaults(monkeypatch) -> None:
     assert text_defaults[0] == "pbtemp_example"
     assert answers["package_name"] == "pbtemp_example"
     assert answers["use_nuke"] is True
+    return None

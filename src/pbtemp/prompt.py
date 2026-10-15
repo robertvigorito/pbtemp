@@ -42,8 +42,13 @@ _TEST_BUILD_ANSWERS: dict[str, str | bool | int] = {
 
 
 @app.callback()
-def cli() -> None:
-    """Create a Python project scaffold from the interactive templates."""
+def cli() -> bool:
+    """Initialize the scaffold CLI.
+
+    Returns:
+        bool: ``True`` when command dispatch can proceed.
+    """
+    return True
 
 
 @app.command("init")
@@ -125,8 +130,34 @@ def init_project(
         "--use-rez-build/--no-use-rez-build",
         help="Default whether to include Rez build support.",
     ),
-) -> None:
-    """Interactively create a Python project scaffold."""
+) -> bool:
+    """Interactively create a Python project scaffold.
+
+    Args:
+        output_dir: Destination directory for generated files.
+        project_name: Default project name for the prompt.
+        version: Default project version for the prompt.
+        description: Default project description for the prompt.
+        build_backend: Default build backend selection.
+        requires_python: Default supported Python version specifier.
+        line_length: Default configured source line length.
+        use_console_script: Default console entry-point selection.
+        use_black: Default Black selection.
+        use_isort: Default isort selection.
+        use_mypy: Default mypy selection.
+        use_nuke: Default Nuke support selection.
+        use_pylint: Default Pylint selection.
+        use_pytest: Default pytest selection.
+        use_ruff: Default Ruff selection.
+        use_rez_build: Default Rez support selection.
+
+    Returns:
+        bool: ``True`` after all generated files are reported.
+
+    Raises:
+        typer.Abort: If an interactive prompt is cancelled.
+        typer.BadParameter: If supplied defaults are invalid.
+    """
     defaults = {
         name: value
         for name, value in {
@@ -159,11 +190,19 @@ def init_project(
     _typer.echo(f"Created {len(written)} project files in {output_dir.expanduser().resolve()}")
     for path in written:
         _typer.echo(f"  {path.relative_to(output_dir.expanduser().resolve())}")
+    return True
 
 
 @app.command("build-temp")
-def build_temp() -> None:
-    """Generate a fully featured sample scaffold under dist/ without packaging it."""
+def build_temp() -> bool:
+    """Generate a fully featured sample scaffold under dist/.
+
+    Returns:
+        bool: ``True`` when all template files are written.
+
+    Raises:
+        typer.Exit: If not all bundled templates can be copied.
+    """
     template_count = len(_get_template_paths())
     distribution_dir = _Path.cwd() / "dist"
     distribution_dir.mkdir(parents=True, exist_ok=True)
@@ -183,8 +222,14 @@ def build_temp() -> None:
 
     _typer.echo(f"Copied all {template_count} template files to {output_dir}.")
     _typer.echo("Complete sample project scaffold created (no wheel built).")
+    return True
 
 
-def main() -> None:
-    """Run the command-line application."""
+def main() -> bool:
+    """Run the Typer command-line application.
+
+    Returns:
+        bool: ``True`` when the CLI returns normally.
+    """
     app()
+    return True

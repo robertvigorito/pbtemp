@@ -6,6 +6,14 @@ from pbtemp.keyvars import DEFAULTS, get_template_root
 
 
 def answers(**overrides: str | bool) -> dict[str, str | bool | int]:
+    """Build sample answer values for scaffold tests.
+
+    Args:
+        **overrides: Values that replace the common sample answers.
+
+    Returns:
+        dict[str, str | bool | int]: Complete scaffold answers.
+    """
     values: dict[str, str | bool | int] = dict(DEFAULTS)
     values.update(
         {
@@ -31,11 +39,23 @@ def answers(**overrides: str | bool) -> dict[str, str | bool | int]:
 
 
 def test_generates_project_layout_and_valid_pyproject(tmp_path: Path) -> None:
+    """Verify generated files, Makefile, and project metadata.
+
+    Args:
+        tmp_path: Temporary destination for the generated scaffold.
+
+    Returns:
+        None: Assertions check project layout and metadata.
+    """
     written = write_templates_to_cwd(answers(), output_dir=tmp_path)
 
     assert (tmp_path / "src" / "sample_project" / "main.py").is_file()
     assert (tmp_path / "tests" / "test_main.py").is_file()
     assert not (tmp_path / "nuke").exists()
+    assert (tmp_path / ".github" / "copilot-instructions.md").is_file()
+    generated_main = (tmp_path / "src" / "sample_project" / "main.py").read_text()
+    assert "Returns:" in generated_main
+    assert "return 0" in generated_main
     assert (tmp_path / "README.md").is_file()
     makefile = (tmp_path / "Makefile").read_text()
     assert "package=sample_project" in makefile
@@ -47,17 +67,32 @@ def test_generates_project_layout_and_valid_pyproject(tmp_path: Path) -> None:
     project = tomllib.loads((tmp_path / "pyproject.toml").read_text())
     assert project["project"]["name"] == "sample-project"
     assert project["project"]["scripts"] == {"sample-project": "sample_project.main:main"}
-    assert len(written) == 7
+    assert len(written) == 8
+    return None
 
 
 def test_templates_are_kept_in_external_resource_directory() -> None:
+    """Verify templates are outside the Python package source.
+
+    Returns:
+        None: Assertions check the resource location.
+    """
     template_root = get_template_root()
 
     assert template_root == Path(__file__).parents[1] / "resources" / "templates"
     assert (template_root / "pyproject.toml").is_file()
+    return None
 
 
 def test_unselected_optional_files_and_tools_are_omitted(tmp_path: Path) -> None:
+    """Verify optional files and settings are omitted when disabled.
+
+    Args:
+        tmp_path: Temporary destination for the generated scaffold.
+
+    Returns:
+        None: Assertions check omitted features.
+    """
     write_templates_to_cwd(
         answers(use_pytest=False, use_ruff=False, use_console_script=False),
         output_dir=tmp_path,
@@ -69,17 +104,35 @@ def test_unselected_optional_files_and_tools_are_omitted(tmp_path: Path) -> None
     assert "scripts" not in project["project"]
     assert "ruff" not in project_text
     assert "pytest" not in project_text
+    return None
 
 
 def test_rez_templates_are_copied_only_when_selected(tmp_path: Path) -> None:
+    """Verify Rez templates are included only when requested.
+
+    Args:
+        tmp_path: Temporary destination for the generated scaffold.
+
+    Returns:
+        None: Assertions check Rez file and Nuke path selection.
+    """
     write_templates_to_cwd(answers(use_rez_build=True), output_dir=tmp_path)
 
     assert (tmp_path / "rez_build" / "package.py").is_file()
     assert (tmp_path / "rez_build" / "rezbuild.py").is_file()
     assert 'env.NUKE_PATH.append("{root}/nuke")' not in (tmp_path / "rez_build" / "package.py").read_text()
+    return None
 
 
 def test_nuke_templates_and_rez_path_are_added_when_selected(tmp_path: Path) -> None:
+    """Verify Nuke scripts and the Rez path are included when enabled.
+
+    Args:
+        tmp_path: Temporary destination for the generated scaffold.
+
+    Returns:
+        None: Assertions check Nuke integration files and environment setup.
+    """
     write_templates_to_cwd(answers(use_nuke=True, use_rez_build=True), output_dir=tmp_path)
 
     assert (tmp_path / "nuke" / "init.py").is_file()
@@ -87,12 +140,24 @@ def test_nuke_templates_and_rez_path_are_added_when_selected(tmp_path: Path) -> 
     assert "sample-project" in (tmp_path / "nuke" / "menu.py").read_text()
     rez_package = (tmp_path / "rez_build" / "package.py").read_text()
     assert 'env.NUKE_PATH.append("{root}/nuke")' in rez_package
+    assert "noqa: F821" in rez_package
+    assert "noqa: I001" in (tmp_path / "nuke" / "menu.py").read_text()
+    return None
 
 
 def test_existing_files_are_not_overwritten(tmp_path: Path) -> None:
+    """Verify generated content uses suffixed paths on collisions.
+
+    Args:
+        tmp_path: Temporary destination containing a pre-existing file.
+
+    Returns:
+        None: Assertions check original and generated file contents.
+    """
     (tmp_path / "README.md").write_text("keep me")
 
     write_templates_to_cwd(answers(), output_dir=tmp_path)
 
     assert (tmp_path / "README.md").read_text() == "keep me"
     assert (tmp_path / "README1.md").is_file()
+    return None

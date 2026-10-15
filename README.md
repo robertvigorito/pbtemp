@@ -26,7 +26,7 @@ pbtemp init --project-name pbtemp_example --use-nuke
 
 These values become the defaults shown in the prompts; the answers can still be changed interactively. Boolean options also support `--no-use-...` forms.
 
-To verify that every bundled template is copied and the generated project builds, run:
+To verify that every bundled template is copied and create a complete sample project, run:
 
 ```sh
 pbtemp build-temp
@@ -34,8 +34,8 @@ pbtemp build-temp
 
 This copies every template into a complete sample project under `dist/pbtemp-test-build`. It creates a project directory rather than a wheel; if that directory already exists, a numbered sibling is used.
 
-The generated project includes a `pyproject.toml`, README, Makefile, `.gitignore`, a `src`-style import package, and optional pytest, Rez, and Nuke support. When Nuke support is selected, it creates startup/menu scripts and adds the package's `nuke` directory to Rez's `NUKE_PATH`. The package name is normalized from the project name, and the console command is configured to call the generated package's `main()` function.
+The generated project includes a `pyproject.toml`, README, Makefile, `.gitignore`, shared coding guidance in `.github/copilot-instructions.md`, and a `src`-style import package with documented functions. Optional pytest, Rez, and Nuke support can also be included. When Nuke support is selected, it creates startup/menu scripts and adds the package's `nuke` directory to Rez's `NUKE_PATH`. The package name is normalized from the project name, and the console command is configured to call the generated package's `main()` function.
 
 ## Development
 
-Run the project's tests with `pytest`. Build and install with `uv build` and `uv pip install .`.
+Run the project's tests with `uv run --group dev pytest`. Check style with `uv run ruff check src tests` and `uv run ruff format --check src tests`. Build and install with `uv build` and `uv pip install .`.

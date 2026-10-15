@@ -1,7 +1,7 @@
 """Interactive questions used to configure a generated project."""
 
 import re as _re
-from typing import Any as _Any
+from typing import TypeVar as _TypeVar
 
 import questionary as _questionary
 from questionary import Choice as _Choice
@@ -10,8 +10,18 @@ from pbtemp.keyvars import BUILD_BACKENDS as _BUILD_BACKENDS
 from pbtemp.keyvars import DEFAULTS as _DEFAULTS
 from pbtemp.keyvars import OPTION_LABELS as _OPTION_LABELS
 
+_Answer = _TypeVar("_Answer")
 
-def _require_answer(answer: _Any) -> _Any:
+
+def _require_answer(answer: _Answer) -> _Answer:
+    """Raise on cancellation and otherwise return an interactive answer.
+
+    Args:
+        answer: Value returned by a questionary prompt.
+
+    Returns:
+        _Answer: The supplied answer when it is not ``None``.
+    """
     if answer is None:
         raise KeyboardInterrupt
     return answer
@@ -20,7 +30,18 @@ def _require_answer(answer: _Any) -> _Any:
 def collect_answers(
     defaults: dict[str, str | bool | int] | None = None,
 ) -> dict[str, str | bool | int]:
-    """Ask for project details, using supplied values as prompt defaults."""
+    """Collect and validate project metadata and feature choices.
+
+    Args:
+        defaults: Optional values to prefill interactive prompts and selections.
+
+    Returns:
+        dict[str, str | bool | int]: Validated project and feature settings.
+
+    Raises:
+        KeyboardInterrupt: If a prompt is cancelled.
+        ValueError: If the project name, version, or backend is invalid.
+    """
     prompt_defaults = {**_DEFAULTS, **(defaults or {})}
     answers: dict[str, str | bool | int] = {}
     for name in ("project_name", "version", "description"):
@@ -45,7 +66,17 @@ def collect_answers(
     ).ask()
     answers["build_backend"] = str(_require_answer(backend))
 
-    selectable = ("black", "isort", "mypy", "nuke", "pylint", "pytest", "ruff", "rez_build", "console_script")
+    selectable = (
+        "black",
+        "isort",
+        "mypy",
+        "nuke",
+        "pylint",
+        "pytest",
+        "ruff",
+        "rez_build",
+        "console_script",
+    )
     choices = [
         _Choice(
             title=_OPTION_LABELS[name],

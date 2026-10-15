@@ -8,8 +8,13 @@ private_build_requires = []
 build_command = "python {root}/rezbuild.py"
 
 
-def commands():
-    """Expose the installed Python package to dependent Rez packages."""
-    env.PYTHONPATH.append("{root}/python")
-{% if use_nuke %}    env.NUKE_PATH.append("{root}/nuke")
+def commands() -> bool:
+    """Expose the generated package and optional Nuke tools in Rez.
+
+    Returns:
+        bool: ``True`` after updating the Rez environment.
+    """
+    env.PYTHONPATH.append("{root}/python")  # noqa: F821 -- Rez injects ``env`` at runtime.
+{% if use_nuke %}    env.NUKE_PATH.append("{root}/nuke")  # noqa: F821 -- Rez injects ``env`` at runtime.
 {% endif %}
+    return True

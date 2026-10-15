@@ -10,14 +10,13 @@ from pbtemp.keyvars import get_template_root as _get_template_root
 
 
 def version_up_on_conflict(path: _Path) -> _Path:
-    """Increment the version number of the template file if it already exists.
-    The aim is to avoid overwriting existing files in the current working directory. If the file already exists.
+    """Return a non-conflicting path by adding a numeric suffix if needed.
 
     Args:
-        path (Path): The path to the template file.
+        path: Candidate output path.
 
     Returns:
-        Path: The path to the template file with the version number incremented if it already exists.
+        Path: The original path if available, otherwise a suffixed path.
     """
     if not path.exists():
         return path
@@ -34,10 +33,17 @@ def write_templates_to_cwd(
     prefix: str = "",
     output_dir: _Path | str | None = None,
 ) -> list[_Path]:
-    """Render and write selected templates, returning the paths that were created.
+    """Render selected templates into the destination directory.
 
-    Existing files are never overwritten; a numeric suffix is added to collisions.
-    The legacy ``prefix`` argument remains available for callers that need it.
+    Existing files are preserved and receive a numeric suffix on collision.
+
+    Args:
+        answers: Values used to render the Jinja templates.
+        prefix: Optional prefix added to each generated filename.
+        output_dir: Destination directory; defaults to the current directory.
+
+    Returns:
+        list[Path]: Paths of all files created.
     """
     environment = _Environment(autoescape=False, keep_trailing_newline=True)
     destination = (_Path(output_dir) if output_dir is not None else _Path.cwd()).expanduser().resolve()

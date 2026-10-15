@@ -40,7 +40,11 @@ OPTION_LABELS = {
 
 
 def get_template_root() -> _Path:
-    """Return templates from source resources or the installed resource directory."""
+    """Locate the external template resource directory.
+
+    Returns:
+        Path: Template root in the checkout or installed package resources.
+    """
     module_path = _Path(__file__).resolve()
     for template_root in (
         module_path.parents[2] / "resources" / "templates",
@@ -52,18 +56,30 @@ def get_template_root() -> _Path:
 
 
 def get_template_paths() -> list[_Path]:
-    """Return all bundled template files, including files in nested directories."""
+    """List every template file, including nested templates.
+
+    Returns:
+        list[Path]: Template paths in stable sorted order.
+    """
     return sorted(path for path in get_template_root().rglob("*") if path.is_file())
 
 
 def get_primary_template_paths() -> list[_Path]:
-    """Return top-level template files (excluding optional nested template sets)."""
+    """List top-level template files, excluding nested feature sets.
+
+    Returns:
+        list[Path]: Paths to top-level templates.
+    """
     return sorted(path for path in get_template_root().iterdir() if path.is_file())
 
 
 @_lru_cache(maxsize=1)
 def get_variable_mapping() -> dict[str, str | bool | int | list[str]]:
-    """Discover template variables and provide sensible values for known options."""
+    """Discover variables referenced by templates and fill known defaults.
+
+    Returns:
+        dict[str, str | bool | int | list[str]]: Template variable defaults.
+    """
     environment = _Environment()
     variables: set[str] = set()
     for template_path in get_template_paths():
