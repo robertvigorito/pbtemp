@@ -35,3 +35,6 @@ Build the static site into `dist/docs/`:
 ```sh
 uv run mkdocs build
 ```
+
+This site uses Material for MkDocs and starts in dark mode. Use its built-in palette control to
+switch to light mode; your choice is remembered in the browser.

@@ -72,9 +72,11 @@ def test_generates_project_layout_and_valid_pyproject(tmp_path: Path) -> None:
     project = tomllib.loads((tmp_path / "pyproject.toml").read_text())
     assert project["project"]["name"] == "sample-project"
     assert project["project"]["scripts"] == {"sample-project": "sample_project.main:main"}
-    assert "mkdocs>=1.6" in project["dependency-groups"]["dev"]
-    assert "mkdocs-windmill-dark>=0.2.0" in project["dependency-groups"]["dev"]
-    assert "name: windmill-dark" in (tmp_path / "mkdocs.yml").read_text()
+    development_dependencies = project["dependency-groups"]["dev"]
+    assert "mkdocs>=1.6,<2" in development_dependencies
+    assert "mkdocs-material>=9.6" in development_dependencies
+    assert "name: material" in (tmp_path / "mkdocs.yml").read_text()
+    assert "Material for MkDocs" in (tmp_path / "README.md").read_text()
     assert len(written) == 11
     return None
 
@@ -92,11 +94,14 @@ def test_mkdocs_templates_are_optional_and_configured(tmp_path: Path) -> None:
 
     project = tomllib.loads((tmp_path / "pyproject.toml").read_text(encoding="utf-8"))
     development_dependencies = project["dependency-groups"]["dev"]
-    assert "mkdocs>=1.6" in development_dependencies
+    assert "mkdocs>=1.6,<2" in development_dependencies
+    assert "mkdocs-material>=9.6" in development_dependencies
     assert "mkdocstrings[python]>=0.27" in development_dependencies
-    assert "mkdocs-windmill-dark>=0.2.0" in development_dependencies
     assert (tmp_path / "mkdocs.yml").is_file()
-    assert "name: windmill-dark" in (tmp_path / "mkdocs.yml").read_text()
+    config = (tmp_path / "mkdocs.yml").read_text()
+    assert "name: material" in config
+    assert "scheme: slate" in config
+    assert "Switch to light mode" in config
     assert (tmp_path / "docs" / "index.md").is_file()
     assert "::: sample_project.main" in (tmp_path / "docs" / "api.md").read_text()
     assert "uv run mkdocs serve" in (tmp_path / "docs" / "index.md").read_text()

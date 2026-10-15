@@ -29,7 +29,9 @@ uv run python -m {{ package_name }}.main
 {% endif %}{% if use_mkdocs %}
 ## Documentation
 
-This project uses [MkDocs](https://www.mkdocs.org/) with generated API reference documentation.
+This project uses [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) with
+generated API reference documentation. The site starts in dark mode and its built-in palette control
+lets you switch to light mode; your choice is remembered in the browser.
 
 Preview the documentation locally:
 

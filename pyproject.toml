@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [
-    { name = "rvigorito", email = "rvigorito@d2.com" }
+    { name = "rvigorito", email = "robertvigorito@gmail.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
@@ -17,9 +17,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "mkdocs>=1.6",
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.6",
     "mkdocstrings[python]>=0.27",
-    "mkdocs-windmill-dark>=0.2.0",
     "pytest>=8.0",
     "ruff>=0.11.0",
 ]
