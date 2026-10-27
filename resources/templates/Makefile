@@ -1,5 +1,6 @@
+package={{ package_name }}
 
-package={{ project_name }}
+.PHONY: clean build clean-build clean-pyc clean-test docs docs-serve format lint check lint-check install poetry-install test test-all script coverage
 
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
 
@@ -19,7 +20,7 @@ clean-build: ## remove build artifacts
 	rm -fr dump.rdb
 	find . -name '*.egg-info' -exec rm -fr {} +
 	find . -name '*.egg' -exec rm -f {} +
-	
+
 clean-pyc: ## remove Python file artifacts
 	find . -name '*.pyc' -exec rm -f {} +
 	find . -name '*.pyo' -exec rm -f {} +
@@ -33,22 +34,27 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr .pytest_cache
 	rm -fr tests/.pytest_cache
 
-clean: clean-test clean-build clean-pyc
+docs: ## build the MkDocs documentation site
+{% if use_mkdocs %}	uv run mkdocs build
 
-docs: ## generate Sphinx HTML documentation, including API docs
-	rm -f docs/alfred.rst
-	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ alfred
-	$(MAKE) -C docs clean
-	$(MAKE) -C docs html
-	$(BROWSER) docs/_build/html/index.html
+docs-serve: ## preview documentation with live reload
+	uv run mkdocs serve
+{% else %}	@echo "MkDocs support is disabled; enable it when generating the scaffold."
+{% endif %}
 
-lint: 
+format: ## apply safe Ruff fixes and format Python files
+{% if use_ruff %}	ruff check --fix .
+	ruff format .
+{% else %}	@echo "Ruff is disabled; enable it when generating the scaffold."
+{% endif %}
+
+lint:
 	$(eval files=$(shell find ./src -type f -name "*.py"))
-	@isort --check-only --color  $(files) --profile black || echo "isort failed" 
+	@isort --check-only --color $(files) --profile black || echo "isort failed"
 	@black --check $(files) || echo "black failed"
-	@pylint --exit-zero $(files)
-	@ruff check $(files)
+	pylint --exit-zero $(files)
+	ruff check $(files)
+	mypy --ignore-missing-imports $(files)
 
 check:
 	@mypy ./src
@@ -59,11 +65,11 @@ install: clean
 	pip install --upgrade .
 
 poetry-install: clean
-	poetry install 
+	poetry install
 
 test: ## run tests quickly with the default Python
-	pytest --cov=$(package) --cov-report=term-missing --cov-fail-under=70 --cov-config=.coveragerc --cov-report=html ./tests
-	pytest --cov=$(package) --cov-report=term-missing --cov-fail-under=70 --cov-config=.coveragerc --cov-report=html ./tests
+	$(MAKE) poetry-install
+	pytest ./tests
 
 test-all: ## run tests on every Python version with tox
 	tox

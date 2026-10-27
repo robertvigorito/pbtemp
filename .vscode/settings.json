@@ -1,0 +1,6 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/home/robert-v/dev/wgid/pbtemp/.venv/bin/pbtemp": true,
+        "make": true
+    }
+}

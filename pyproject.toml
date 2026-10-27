@@ -1,17 +1,41 @@
 [project]
 name = "pbtemp"
-version = "0.1.0"
+version = "0.1.4"
 description = "Add your description here"
 readme = "README.md"
 authors = [
-    { name = "rvigorito", email = "rvigorito@d2.com" }
+    { name = "rvigorito", email = "robertvigorito@gmail.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
     "jinja2>=3.1.6",
+    "platformdirs>=4.3.6",
     "questionary>=2.1.1",
-    "rich>=15.0.0",
+    "tomlkit>=0.13.3",
+    "typer>=0.27.1",
 ]
+
+[dependency-groups]
+dev = [
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.6",
+    "mkdocstrings[python]>=0.27",
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "pytest-sugar>=1.0",
+    "ruff>=0.11.0",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--cov=pbtemp", "--cov-report=term-missing"]
 
 [project.scripts]
 pbtemp = "pbtemp:main"
@@ -19,3 +43,6 @@ pbtemp = "pbtemp:main"
 [build-system]
 requires = ["uv_build>=0.9.11,<0.10.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend.data]
+purelib = "resources"
