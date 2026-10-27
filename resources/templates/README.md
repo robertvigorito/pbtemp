@@ -58,5 +58,5 @@ uv run ruff format .
 
 ## Template paths
 
-Edit the `[paths]` section in `pbtemp.toml` to change where generated package, Nuke, and Rez
-directories are placed. Paths are relative to the project root.
+Edit the generated `pbtemp.toml` file (rendered from `resources/pbtemp.toml`) to change where
+package, Nuke, and Rez directories are placed. Paths are relative to the project root.

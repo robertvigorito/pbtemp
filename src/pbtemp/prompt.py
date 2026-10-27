@@ -10,6 +10,7 @@ from pbtemp.history import serialize_history as _serialize_history
 from pbtemp.history import write_history as _write_history
 from pbtemp.keyvars import DEFAULTS as _DEFAULTS
 from pbtemp.keyvars import get_template_paths as _get_template_paths
+from pbtemp.merge import SUPPORTED_MERGE_OPERATIONS as _SUPPORTED_MERGE_OPERATIONS
 from pbtemp.merge import get_existing_project_defaults as _get_existing_project_defaults
 from pbtemp.merge import merge_project_templates as _merge_project_templates
 from pbtemp.merger_prompt import collect_answers as _collect_answers
@@ -274,6 +275,13 @@ def init_project(
 @app.command("merge")
 def merge_project(
     output_dir: _Path = _OUTPUT_DIR_OPTION,
+    operation: str = _typer.Option(
+        "all",
+        "--operation",
+        "-m",
+        case_sensitive=False,
+        help=("Limit migration to one template group: " + ", ".join(_SUPPORTED_MERGE_OPERATIONS) + "."),
+    ),
     ignore_history: bool = _typer.Option(
         False,
         "--ignore-history",
@@ -288,6 +296,7 @@ def merge_project(
 
     Args:
         output_dir: Root directory of the existing project.
+        operation: Template migration scope to apply.
         ignore_history: Whether to skip remembered prompt values for this run.
 
     Returns:
@@ -298,13 +307,22 @@ def merge_project(
         typer.BadParameter: If the directory lacks valid Python project metadata.
     """
     project_dir = output_dir.expanduser().resolve()
+    operation_name = operation.lower()
+    if operation_name not in _SUPPORTED_MERGE_OPERATIONS:
+        raise _typer.BadParameter(
+            f"Invalid operation '{operation}'. Choose from: {', '.join(_SUPPORTED_MERGE_OPERATIONS)}."
+        )
     try:
         defaults = {
             **_load_history_defaults(ignore_history),
             **_get_existing_project_defaults(project_dir, include_fallbacks=False),
         }
         answers = _collect_answers(defaults=defaults)
-        changed = _merge_project_templates(answers=answers, project_dir=project_dir)
+        changed = _merge_project_templates(
+            answers=answers,
+            project_dir=project_dir,
+            operation=operation_name,
+        )
     except KeyboardInterrupt as error:
         raise _typer.Abort() from error
     except (FileNotFoundError, ValueError) as error:
@@ -387,7 +405,8 @@ def build_temp() -> bool:
     Raises:
         typer.Exit: If not all bundled templates can be copied.
     """
-    template_count = len(_get_template_paths())
+    # ``write_templates_to_cwd`` also emits a project-local pbtemp.toml path-map.
+    template_count = len(_get_template_paths()) + 1
     distribution_dir = _Path.cwd() / "dist"
     distribution_dir.mkdir(parents=True, exist_ok=True)
     output_dir = distribution_dir / str(_TEST_BUILD_ANSWERS["project_name"])

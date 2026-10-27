@@ -41,6 +41,14 @@ Merge template configuration into an existing project with:
 pbtemp merge --output-dir .
 ```
 
+To migrate only one feature area, use `--operation` (for example, only Rez support):
+
+```sh
+pbtemp merge --output-dir . --operation rez
+```
+
+Supported operations are `all`, `core`, `docs`, `tests`, `nuke`, and `rez`.
+
 The merge command uses existing project metadata and detected features as prompt defaults. It preserves existing TOML values and build-system configuration, adds missing template settings and development dependencies, extends `.gitignore` and existing Makefiles without replacing their targets, and only copies other files that do not already exist.
 
 To verify that every bundled template is copied and create a complete sample project, run:
@@ -53,10 +61,12 @@ This copies every template into a complete sample project under `dist/pbtemp-tes
 
 The generated project includes a `pyproject.toml`, README, Makefile, `.gitignore`, shared coding guidance in `.github/copilot-instructions.md`, and a `src`-style import package with documented functions. MkDocs support is enabled by default and adds the Material for MkDocs theme, a home page, and generated API reference. It starts in dark mode and provides a built-in toggle to switch to light mode, remembering the choice in the browser. Use `mkdocs serve` to preview or `mkdocs build` to build the site; disable documentation with `--no-use-mkdocs`. Optional pytest, Rez, and Nuke support can also be included. When Nuke support is selected, it creates startup/menu scripts and adds the package's `nuke` directory to Rez's `NUKE_PATH`. The package name is normalized from the project name, and the console command is configured to call the generated package's `main()` function.
 
-The generated `pbtemp.toml` controls where template subdirectories are created. By default package
-code goes to `src/{package_name}`, and optional Nuke and Rez support go to `src/nuke` and
-`src/rez_build`. Change the values under `[paths]` to customize those locations. Paths are relative
-to the project root and cannot escape it. `pbtemp merge` uses the same configuration.
+The generated `pbtemp.toml` controls where template subdirectories are created. The default
+path-map template is bundled at `resources/pbtemp.toml`. By default package code goes to
+`src/{package_name}`, optional Nuke support goes to `src/nuke`, and optional Rez support goes to
+the project root (`package.py` and `rezbuild.py`) via `rez_build = ""`.
+Change the values under `[paths]` to customize those locations. Paths are relative to the project
+root and cannot escape it. `pbtemp merge` uses the same configuration.
 
 ## Development
 

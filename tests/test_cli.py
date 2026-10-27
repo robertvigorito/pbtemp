@@ -26,10 +26,11 @@ def test_test_build_copies_all_templates_under_dist(tmp_path: Path, monkeypatch:
     assert result.exit_code == 0, result.output
     project_dir = tmp_path / "dist" / "pbtemp-test-build"
     copied_files = [path for path in project_dir.rglob("*") if path.is_file()]
-    assert len(copied_files) == len(get_template_paths())
+    assert len(copied_files) == len(get_template_paths()) + 1
     assert (project_dir / "pyproject.toml").is_file()
+    assert (project_dir / "pbtemp.toml").is_file()
     assert (project_dir / "src" / "pbtemp_test_build" / "main.py").is_file()
-    assert (project_dir / "src" / "rez_build" / "package.py").is_file()
+    assert (project_dir / "package.py").is_file()
     assert (project_dir / "tests" / "test_main.py").is_file()
     assert (project_dir / "src" / "nuke" / "init.py").is_file()
     assert (project_dir / "src" / "nuke" / "menu.py").is_file()
@@ -509,4 +510,68 @@ def test_merge_command_updates_existing_project(tmp_path: Path, monkeypatch: pyt
     assert "Merged template configuration" in result.output
     assert (tmp_path / "src" / "existing_app" / "main.py").is_file()
     assert (tmp_path / "tests" / "test_main.py").is_file()
+    return None
+
+
+def test_merge_command_supports_rez_operation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify merge operation filtering can migrate only Rez templates.
+
+    Args:
+        tmp_path: Temporary existing-project directory.
+        monkeypatch: Pytest fixture for supplying non-interactive answers.
+
+    Returns:
+        None: Assertions check operation-scoped merge output.
+    """
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "existing-app"\nversion = "2.0.0"\n',
+        encoding="utf-8",
+    )
+    sample_answers: dict[str, str | bool | int] = {
+        "project_name": "existing-app",
+        "package_name": "existing_app",
+        "command_name": "existing-app",
+        "version": "0.1.0",
+        "description": "Existing project",
+        "requires_python": ">=3.12",
+        "line_length": 100,
+        "build_backend": "hatchling",
+        "use_console_script": False,
+        "use_black": False,
+        "use_isort": False,
+        "use_mypy": False,
+        "use_nuke": False,
+        "use_pylint": False,
+        "use_pytest": True,
+        "use_ruff": True,
+        "use_rez_build": True,
+    }
+
+    monkeypatch.setattr(prompt, "_collect_answers", lambda *, defaults: sample_answers)
+    monkeypatch.setattr(prompt, "_read_history", lambda: {})
+    monkeypatch.setattr(prompt, "_write_history", lambda _answers: True)
+
+    result = CliRunner().invoke(prompt.app, ["merge", "--operation", "rez", "--output-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "package.py").is_file()
+    assert (tmp_path / "rezbuild.py").is_file()
+    assert not (tmp_path / "tests").exists()
+    assert not (tmp_path / "src" / "existing_app").exists()
+    return None
+
+
+def test_merge_command_rejects_unknown_operation(tmp_path: Path) -> None:
+    """Verify merge fails with a clear message for unsupported operations.
+
+    Args:
+        tmp_path: Temporary directory passed as merge target.
+
+    Returns:
+        None: Assertions verify argument validation output.
+    """
+    result = CliRunner().invoke(prompt.app, ["merge", "--output-dir", str(tmp_path), "--operation", "unknown"])
+
+    assert result.exit_code != 0
+    assert "Invalid operation 'unknown'" in result.output
     return None

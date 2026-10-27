@@ -4,7 +4,7 @@ import tomllib
 from pathlib import Path
 
 from pbtemp.combine import write_templates_to_cwd
-from pbtemp.keyvars import DEFAULTS, get_template_root
+from pbtemp.keyvars import DEFAULTS, get_path_map_template_path, get_template_root
 
 
 def answers(**overrides: str | bool | int) -> dict[str, str | bool | int]:
@@ -87,7 +87,7 @@ def test_generates_project_layout_and_valid_pyproject(tmp_path: Path) -> None:
     path_config = tomllib.loads((tmp_path / "pbtemp.toml").read_text(encoding="utf-8"))
     assert path_config["paths"]["package"] == "src/{package_name}"
     assert path_config["paths"]["nuke"] == "src/nuke"
-    assert path_config["paths"]["rez_build"] == "src/rez_build"
+    assert path_config["paths"]["rez_build"] == ""
     assert len(written) == 12
     return None
 
@@ -205,9 +205,12 @@ def test_templates_are_kept_in_external_resource_directory() -> None:
         None: Assertions check the resource location.
     """
     template_root = get_template_root()
+    path_map_template = get_path_map_template_path()
 
     assert template_root == Path(__file__).parents[1] / "resources" / "templates"
     assert (template_root / "pyproject.toml").is_file()
+    assert path_map_template == Path(__file__).parents[1] / "resources" / "pbtemp.toml"
+    assert path_map_template.is_file()
     return None
 
 
@@ -252,9 +255,9 @@ def test_rez_templates_are_copied_only_when_selected(tmp_path: Path) -> None:
     """
     write_templates_to_cwd(answers(use_rez_build=True), output_dir=tmp_path)
 
-    assert (tmp_path / "src" / "rez_build" / "package.py").is_file()
-    assert (tmp_path / "src" / "rez_build" / "rezbuild.py").is_file()
-    assert 'env.NUKE_PATH.append("{root}/src/nuke")' not in (tmp_path / "src" / "rez_build" / "package.py").read_text()
+    assert (tmp_path / "package.py").is_file()
+    assert (tmp_path / "rezbuild.py").is_file()
+    assert 'env.NUKE_PATH.append("{root}/src/nuke")' not in (tmp_path / "package.py").read_text()
     return None
 
 
@@ -272,7 +275,7 @@ def test_nuke_templates_and_rez_path_are_added_when_selected(tmp_path: Path) -> 
     assert (tmp_path / "src" / "nuke" / "init.py").is_file()
     assert (tmp_path / "src" / "nuke" / "menu.py").is_file()
     assert "sample-project" in (tmp_path / "src" / "nuke" / "menu.py").read_text()
-    rez_package = (tmp_path / "src" / "rez_build" / "package.py").read_text()
+    rez_package = (tmp_path / "package.py").read_text()
     assert 'env.NUKE_PATH.append("{root}/src/nuke")' in rez_package
     assert "noqa: F821" in rez_package
     assert "noqa: I001" in (tmp_path / "src" / "nuke" / "menu.py").read_text()
@@ -294,4 +297,26 @@ def test_existing_files_are_not_overwritten(tmp_path: Path) -> None:
 
     assert (tmp_path / "README.md").read_text() == "keep me"
     assert (tmp_path / "README1.md").is_file()
+    return None
+
+
+def test_operation_filter_can_limit_generation_to_rez_templates(tmp_path: Path) -> None:
+    """Verify operation filtering can generate only Rez-related templates.
+
+    Args:
+        tmp_path: Temporary destination for generated files.
+
+    Returns:
+        None: Assertions verify operation-scoped generation output.
+    """
+    write_templates_to_cwd(
+        answers(use_rez_build=True, use_nuke=False),
+        output_dir=tmp_path,
+        operation="rez",
+    )
+
+    assert (tmp_path / "package.py").is_file()
+    assert (tmp_path / "rezbuild.py").is_file()
+    assert not (tmp_path / "pyproject.toml").exists()
+    assert not (tmp_path / "pbtemp.toml").exists()
     return None

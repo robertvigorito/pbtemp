@@ -138,7 +138,7 @@ def test_merge_preserves_project_values_and_adds_missing_templates(tmp_path: Pat
     assert existing_main.read_text(encoding="utf-8") == "# keep the user's implementation\n"
     assert (package_dir / "__init__.py").is_file()
     assert (tmp_path / "tests" / "test_main.py").is_file()
-    assert (tmp_path / "src" / "rez_build" / "package.py").is_file()
+    assert (tmp_path / "package.py").is_file()
     assert (tmp_path / "src" / "nuke" / "init.py").is_file()
     assert "custom-cache/" in (tmp_path / ".gitignore").read_text(encoding="utf-8")
     merged_makefile = (tmp_path / "Makefile").read_text(encoding="utf-8")
@@ -149,4 +149,47 @@ def test_merge_preserves_project_values_and_adds_missing_templates(tmp_path: Pat
     assert "package=legacy_import" in merged_makefile
     assert tmp_path / "pyproject.toml" in changed
     assert existing_main not in changed
+    return None
+
+
+def test_merge_operation_can_target_only_rez_templates(tmp_path: Path) -> None:
+    """Verify merge can add only Rez templates for a focused migration.
+
+    Args:
+        tmp_path: Temporary existing-project directory.
+
+    Returns:
+        None: Assertions check operation-scoped merge behavior.
+    """
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "legacy-app"\nversion = "4.2.0"\n',
+        encoding="utf-8",
+    )
+
+    answers: dict[str, str | bool | int] = {
+        **DEFAULTS,
+        "project_name": "legacy-app",
+        "package_name": "legacy_import",
+        "command_name": "legacy-app",
+        "version": "0.1.0",
+        "description": "Template description",
+        "build_backend": "hatchling",
+        "use_console_script": True,
+        "use_black": False,
+        "use_isort": False,
+        "use_mypy": False,
+        "use_pylint": False,
+        "use_pytest": True,
+        "use_ruff": True,
+        "use_rez_build": True,
+        "use_nuke": False,
+    }
+
+    changed = merge_project_templates(answers=answers, project_dir=tmp_path, operation="rez")
+
+    assert (tmp_path / "package.py").is_file()
+    assert (tmp_path / "rezbuild.py").is_file()
+    assert not (tmp_path / "tests" / "test_main.py").exists()
+    assert not (tmp_path / "src" / "legacy_import" / "main.py").exists()
+    assert (tmp_path / "package.py") in changed
     return None

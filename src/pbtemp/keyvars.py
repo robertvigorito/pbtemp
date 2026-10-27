@@ -61,6 +61,22 @@ def get_template_root() -> _Path:
     raise FileNotFoundError("Could not find the pbtemp template resources.")
 
 
+def get_path_map_template_path() -> _Path:
+    """Locate the default ``pbtemp.toml`` resource used for path mappings.
+
+    Returns:
+        Path: The bundled ``pbtemp.toml`` resource path.
+    """
+    module_path = _Path(__file__).resolve()
+    for config_path in (
+        module_path.parents[2] / "resources" / "pbtemp.toml",
+        module_path.parents[1] / "pbtemp.toml",
+    ):
+        if config_path.is_file():
+            return config_path
+    raise FileNotFoundError("Could not find the pbtemp path-mapping resource.")
+
+
 def get_template_paths() -> list[_Path]:
     """List every template file, including nested templates.
 

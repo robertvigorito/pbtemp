@@ -6,6 +6,7 @@ from typing import Any as _Any
 
 from jinja2 import Environment as _Environment
 
+from pbtemp.keyvars import get_path_map_template_path as _get_path_map_template_path
 from pbtemp.keyvars import get_template_paths as _get_template_paths
 from pbtemp.keyvars import get_template_root as _get_template_root
 
@@ -13,6 +14,14 @@ _DEFAULT_PATH_MAPPINGS = {
     "package": "src/{package_name}",
     "nuke": "src/nuke",
     "rez_build": "",
+}
+_OPERATION_TO_TEMPLATE_GROUPS: dict[str, set[str]] = {
+    "all": set(),
+    "core": {".github", "package"},
+    "docs": {"docs", "mkdocs.yml"},
+    "tests": {"tests"},
+    "nuke": {"nuke"},
+    "rez": {"rez_build"},
 }
 
 
@@ -40,6 +49,7 @@ def write_templates_to_cwd(
     prefix: str = "",
     output_dir: _Path | str | None = None,
     config_dir: _Path | str | None = None,
+    operation: str = "all",
 ) -> list[_Path]:
     """Render selected templates into the destination directory.
 
@@ -50,6 +60,7 @@ def write_templates_to_cwd(
         prefix: Optional prefix added to each generated filename.
         output_dir: Destination directory; defaults to the current directory.
         config_dir: Directory containing optional ``pbtemp.toml`` path mappings.
+        operation: Optional migration scope used to filter rendered template groups.
 
     Returns:
         list[Path]: Paths of all files created.
@@ -61,9 +72,15 @@ def write_templates_to_cwd(
     path_mappings = get_template_path_mappings(configuration_root)
     template_root = _get_template_root()
     written: list[_Path] = []
+    selected_groups = _OPERATION_TO_TEMPLATE_GROUPS.get(operation)
+    if selected_groups is None:
+        raise ValueError(f"Unknown operation: {operation}")
 
     for template_path in _get_template_paths():
         relative_path = template_path.relative_to(template_root)
+        template_group = relative_path.parts[0]
+        if selected_groups and template_group not in selected_groups:
+            continue
         if relative_path.parts[0] == "rez_build" and not answers.get("use_rez_build", False):
             continue
         if relative_path.parts[0] == "tests" and not answers.get("use_pytest", False):
@@ -87,6 +104,15 @@ def write_templates_to_cwd(
         rendered = environment.from_string(template_path.read_text(encoding="utf-8")).render(**answers)
         output_path.write_text(rendered, encoding="utf-8")
         written.append(output_path)
+
+    # Always ship a project-local path-map config during full/project init runs.
+    if operation == "all":
+        config_output_path = version_up_on_conflict(destination / "pbtemp.toml")
+        rendered_config = environment.from_string(_get_path_map_template_path().read_text(encoding="utf-8")).render(
+            **answers
+        )
+        config_output_path.write_text(rendered_config, encoding="utf-8")
+        written.append(config_output_path)
 
     return written
 

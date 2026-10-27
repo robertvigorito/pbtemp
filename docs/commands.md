@@ -29,10 +29,18 @@ selected options determine which configuration and feature files are generated. 
 already exists, the generator keeps it and creates a numbered sibling rather than overwriting it.
 Template directories are placed according to the project-local `pbtemp.toml` path map: package code
 defaults to `src/{package_name}`, while Nuke and Rez support default to `src/nuke` and
-`src/rez_build`. Top-level template files and other directories retain their template-relative
+the project root (`package.py` and `rezbuild.py`) via `rez_build = ""`. Top-level template files and other directories retain their template-relative
 locations. Edit `[paths]` in `pbtemp.toml` to customize these destinations; paths must remain inside
 the project directory. The same map is respected by `merge`.
 
+
+When you only want to migrate part of the template set, use `--operation`:
+
+```sh
+pbtemp merge --output-dir . --operation rez
+```
+
+Supported operations are `all`, `core`, `docs`, `tests`, `nuke`, and `rez`.
 ### Prefilling prompts with terminal options
 
 Options passed on the command line change the initial values shown by the prompts; they do not skip

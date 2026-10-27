@@ -37,6 +37,7 @@ _FEATURE_TO_PACKAGE = {
     "ruff": "use_ruff",
     "mkdocs": "use_mkdocs",
 }
+SUPPORTED_MERGE_OPERATIONS = ("all", "core", "docs", "tests", "nuke", "rez")
 
 
 def get_existing_project_defaults(
@@ -105,7 +106,10 @@ def get_existing_project_defaults(
     ):
         mapped_directory = _get_template_path_mappings(project_dir).get(directory, directory)
         mapped_directory = mapped_directory.replace("{package_name}", package_name)
-        detected = (project_dir / mapped_directory).is_dir()
+        if option == "use_rez_build" and not mapped_directory:
+            detected = (project_dir / "package.py").is_file() and (project_dir / "rezbuild.py").is_file()
+        else:
+            detected = (project_dir / mapped_directory).is_dir()
         if detected or include_fallbacks:
             defaults[option] = detected
     if (project_dir / "mkdocs.yml").is_file():
@@ -128,6 +132,7 @@ def get_existing_project_defaults(
 def merge_project_templates(
     answers: dict[str, str | bool | int],
     project_dir: _Path,
+    operation: str = "all",
 ) -> list[_Path]:
     """Merge rendered templates into an existing project without overwriting source.
 
@@ -139,6 +144,7 @@ def merge_project_templates(
     Args:
         answers: Values used to render the selected templates.
         project_dir: Root directory of the existing project.
+        operation: Optional migration scope used to filter template groups.
 
     Returns:
         list[Path]: Paths added or updated by the merge.
@@ -159,6 +165,7 @@ def merge_project_templates(
             answers,
             output_dir=template_root,
             config_dir=destination,
+            operation=operation,
         )
         for rendered_path in rendered_files:
             relative_path = rendered_path.relative_to(template_root)
