@@ -24,14 +24,16 @@ pbtemp init --output-dir ../new-library
 pbtemp init -o /work/new-library
 ```
 
-The command prompts for project name, version, description, build backend, and optional tools. The
+The command prompts for project name, version, description, Python compatibility requirement
+(`>=3.10` by default), build backend, and optional tools. The
 selected options determine which configuration and feature files are generated. If an output file
 already exists, the generator keeps it and creates a numbered sibling rather than overwriting it.
 Template directories are placed according to the project-local `pbtemp.toml` path map: package code
 defaults to `src/{package_name}`, while Nuke and Rez support default to `src/nuke` and
 the project root (`package.py` and `rezbuild.py`) via `rez_build = ""`. Top-level template files and other directories retain their template-relative
 locations. Edit `[paths]` in `pbtemp.toml` to customize these destinations; paths must remain inside
-the project directory. The same map is respected by `merge`.
+the project directory. The `[operations]` table in the same file maps operation names to template
+groups, so operations can be customized or added there. Both tables are respected by `merge`.
 
 
 When you only want to migrate part of the template set, use `--operation`:
@@ -40,7 +42,27 @@ When you only want to migrate part of the template set, use `--operation`:
 pbtemp merge --output-dir . --operation rez
 ```
 
-Supported operations are `all`, `core`, `docs`, `tests`, `nuke`, and `rez`.
+Supported operations are `all`, `core`, `docs`, `tests`, `nuke`, `rez`, and `makefile`. You can
+combine scopes by repeating `--operation`. Use the Makefile operation to update only the generated Makefile:
+
+```sh
+pbtemp merge --operation makefile
+```
+
+For example, update both documentation and the Makefile in one merge:
+
+```sh
+pbtemp merge --operation docs --operation makefile
+```
+
+By default, merge preserves existing Makefile recipes and adds missing targets. To fix the
+Makefile by replacing it completely with the generated version, pass `--hard-replace` (also
+available as `--replace-makefile`). This discards custom Makefile content, so review or back it
+up first:
+
+```sh
+pbtemp merge --operation makefile --hard-replace
+```
 ### Prefilling prompts with terminal options
 
 Options passed on the command line change the initial values shown by the prompts; they do not skip
@@ -107,6 +129,16 @@ pbtemp merge
 
 # Or, from any directory:
 pbtemp merge --output-dir ~/work/widget-tools
+```
+
+Merge preserves existing files by default: it merges missing settings into `pyproject.toml`, adds
+missing Makefile targets, appends missing `.gitignore` entries, and leaves other existing files
+untouched. To overwrite existing generated files selected by the operation scopes, use `--replace`
+(aliases: `--hard-replace` and `--replace-makefile`). This can overwrite project configuration and
+source files, so back up or review the target project first:
+
+```sh
+pbtemp merge --operation docs --operation makefile --replace
 ```
 
 The target must contain a valid `pyproject.toml`. Existing project metadata and detected features

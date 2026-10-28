@@ -51,6 +51,15 @@ def collect_answers(
         ).ask()
         answers[name] = str(_require_answer(answer)).strip()
 
+    requires_python_answer = _questionary.text(
+        "Python version requirement (for example >=3.10):",
+        default=str(prompt_defaults["requires_python"]),
+    ).ask()
+    requires_python = str(_require_answer(requires_python_answer)).strip()
+    if not requires_python:
+        raise ValueError("Python version requirement cannot be empty.")
+    answers["requires_python"] = requires_python
+
     if not _re.fullmatch(r"[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*", str(answers["project_name"])):
         raise ValueError("Project name must contain only letters, numbers, dots, underscores, and hyphens.")
     if not _re.fullmatch(r"\d+(?:\.\d+)*(?:[a-zA-Z0-9.+-]*)", str(answers["version"])):
@@ -120,5 +129,4 @@ def collect_answers(
             str(answers["project_name"]).replace("_", "-").lower(),
         )
     )
-    answers["requires_python"] = str(prompt_defaults["requires_python"])
     return answers

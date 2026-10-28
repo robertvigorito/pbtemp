@@ -4,6 +4,7 @@ from pathlib import Path as _Path
 
 import typer as _typer
 
+from pbtemp.combine import get_template_operations as _get_template_operations
 from pbtemp.combine import write_templates_to_cwd as _write_templates
 from pbtemp.history import read_history as _read_history
 from pbtemp.history import serialize_history as _serialize_history
@@ -27,6 +28,27 @@ _OUTPUT_DIR_OPTION = _typer.Option(
     dir_okay=True,
     help="Directory in which to create the project files (defaults to the current directory).",
 )
+
+
+def _complete_merge_operation(ctx: _typer.Context, incomplete: str) -> list[str]:
+    """Suggest configured merge operations matching the current input.
+
+    Args:
+        ctx: Typer context containing parsed merge options.
+        incomplete: Partial operation value typed by the user.
+
+    Returns:
+        list[str]: Matching configured operation names.
+    """
+    output_dir = ctx.params.get("output_dir", _Path.cwd())
+    project_dir = _Path(output_dir).expanduser().resolve()
+    try:
+        operations = _get_template_operations(project_dir)
+    except (OSError, ValueError):
+        return []
+    return [name for name in operations if name.startswith(incomplete.lower())]
+
+
 _TEST_BUILD_ANSWERS: dict[str, str | bool | int] = {
     **_DEFAULTS,
     "project_name": "pbtemp-test-build",
@@ -275,12 +297,24 @@ def init_project(
 @app.command("merge")
 def merge_project(
     output_dir: _Path = _OUTPUT_DIR_OPTION,
-    operation: str = _typer.Option(
-        "all",
+    operation: list[str] = _typer.Option(
+        ["all"],
         "--operation",
         "-m",
         case_sensitive=False,
-        help=("Limit migration to one template group: " + ", ".join(_SUPPORTED_MERGE_OPERATIONS) + "."),
+        autocompletion=_complete_merge_operation,
+        help=(
+            "Select one or more template groups; repeat --operation. Available: "
+            + ", ".join(_SUPPORTED_MERGE_OPERATIONS)
+            + "."
+        ),
+    ),
+    hard_replace: bool = _typer.Option(
+        False,
+        "--hard-replace",
+        "--replace-makefile",
+        "--replace",
+        help="Replace existing generated files in selected operation scopes instead of merging or preserving them.",
     ),
     ignore_history: bool = _typer.Option(
         False,
@@ -292,11 +326,13 @@ def merge_project(
     """Merge current templates into an existing Python project.
 
     Existing pyproject settings are preserved while missing template configuration
-    and dependencies are added. Other existing files are not overwritten.
+    and dependencies are added. Existing files are preserved by default; the
+    --replace option overwrites generated files selected by the operation scopes.
 
     Args:
         output_dir: Root directory of the existing project.
-        operation: Template migration scope to apply.
+        operation: One or more template migration scopes to apply.
+        hard_replace: Whether to replace existing generated files in the selected scopes.
         ignore_history: Whether to skip remembered prompt values for this run.
 
     Returns:
@@ -307,12 +343,15 @@ def merge_project(
         typer.BadParameter: If the directory lacks valid Python project metadata.
     """
     project_dir = output_dir.expanduser().resolve()
-    operation_name = operation.lower()
-    if operation_name not in _SUPPORTED_MERGE_OPERATIONS:
-        raise _typer.BadParameter(
-            f"Invalid operation '{operation}'. Choose from: {', '.join(_SUPPORTED_MERGE_OPERATIONS)}."
-        )
+    operation_names = [name.lower() for name in operation]
     try:
+        supported_operations = tuple(_get_template_operations(project_dir))
+        unknown_operations = sorted(set(operation_names) - set(supported_operations))
+        if unknown_operations:
+            raise _typer.BadParameter(
+                f"Invalid operation(s) {', '.join(repr(name) for name in unknown_operations)}. "
+                f"Choose from: {', '.join(supported_operations)}."
+            )
         defaults = {
             **_load_history_defaults(ignore_history),
             **_get_existing_project_defaults(project_dir, include_fallbacks=False),
@@ -321,7 +360,8 @@ def merge_project(
         changed = _merge_project_templates(
             answers=answers,
             project_dir=project_dir,
-            operation=operation_name,
+            operation=operation_names,
+            hard_replace=hard_replace,
         )
     except KeyboardInterrupt as error:
         raise _typer.Abort() from error

@@ -68,9 +68,18 @@ def test_generates_project_layout_and_valid_pyproject(tmp_path: Path) -> None:
     assert "clean-pyc:" in makefile
     assert "clean-test:" in makefile
     assert "lint-check: lint check" in makefile
-    assert "poetry install" in makefile
+    assert "uv sync" in makefile
+    assert "uv run pytest ./tests" in makefile
+    assert "uv run ruff check ." in makefile
+    assert "uv run black --check ." not in makefile
+    assert "uv run isort" not in makefile
+    assert "uv run mypy" not in makefile
+    assert "uv run pylint" not in makefile
+    assert "poetry" not in makefile
+    assert "pip install" not in makefile
     project = tomllib.loads((tmp_path / "pyproject.toml").read_text())
     assert project["project"]["name"] == "sample-project"
+    assert project["project"]["requires-python"] == ">=3.10"
     assert project["project"]["scripts"] == {"sample-project": "sample_project.main:main"}
     development_dependencies = project["dependency-groups"]["dev"]
     assert "mkdocs>=1.6,<2" in development_dependencies
@@ -88,6 +97,8 @@ def test_generates_project_layout_and_valid_pyproject(tmp_path: Path) -> None:
     assert path_config["paths"]["package"] == "src/{package_name}"
     assert path_config["paths"]["nuke"] == "src/nuke"
     assert path_config["paths"]["rez_build"] == ""
+    assert path_config["operations"]["core"] == [".github", "package"]
+    assert path_config["operations"]["makefile"] == ["Makefile"]
     assert len(written) == 12
     return None
 
@@ -119,6 +130,22 @@ def test_mkdocs_templates_are_optional_and_configured(tmp_path: Path) -> None:
     return None
 
 
+def test_python_requirement_can_be_customized(tmp_path: Path) -> None:
+    """Verify the selected Python requirement is written to project metadata.
+
+    Args:
+        tmp_path: Temporary destination for generated files.
+
+    Returns:
+        None: Assertions check the generated Python requirement.
+    """
+    write_templates_to_cwd(answers(requires_python=">=3.12"), output_dir=tmp_path)
+
+    project = tomllib.loads((tmp_path / "pyproject.toml").read_text(encoding="utf-8"))
+    assert project["project"]["requires-python"] == ">=3.12"
+    return None
+
+
 def test_pytest_sugar_and_coverage_are_optional(tmp_path: Path) -> None:
     """Verify selected pytest add-ons are installed and coverage is configured.
 
@@ -141,6 +168,10 @@ def test_pytest_sugar_and_coverage_are_optional(tmp_path: Path) -> None:
     pytest_options = project["tool"]["pytest"]["ini_options"]["addopts"]
     assert "--cov=sample_project" in pytest_options
     assert "--cov-report=term-missing" in pytest_options
+    assert "--cov-report=html" in pytest_options
+    makefile = (tmp_path / "Makefile").read_text(encoding="utf-8")
+    assert "uv run pytest ./tests" in makefile
+    assert "Coverage HTML report is available" in makefile
     return None
 
 
@@ -160,6 +191,7 @@ def test_line_length_is_shared_by_selected_formatters_and_linters(tmp_path: Path
             use_isort=True,
             use_pylint=True,
             use_ruff=True,
+            use_mypy=True,
         ),
         output_dir=tmp_path,
     )
@@ -169,6 +201,13 @@ def test_line_length_is_shared_by_selected_formatters_and_linters(tmp_path: Path
     assert project["tool"]["isort"]["line_length"] == 88
     assert project["tool"]["pylint"]["format"]["max-line-length"] == 88
     assert project["tool"]["ruff"]["line-length"] == 88
+    makefile = (tmp_path / "Makefile").read_text(encoding="utf-8")
+    assert "uv run black --check ." in makefile
+    assert "uv run isort --check-only --profile black ." in makefile
+    assert "uv run pylint --exit-zero src" in makefile
+    assert "uv run mypy --ignore-missing-imports src" in makefile
+    assert "uv run black ." in makefile
+    assert "uv run isort --profile black ." in makefile
     return None
 
 
@@ -195,6 +234,27 @@ def test_project_path_configuration_overrides_template_locations(tmp_path: Path)
     assert (tmp_path / "tools" / "nuke" / "init.py").is_file()
     assert (tmp_path / "build" / "rez" / "package.py").is_file()
     assert (tmp_path / "pbtemp1.toml").is_file()
+    return None
+
+
+def test_project_configuration_can_define_template_operations(tmp_path: Path) -> None:
+    """Verify custom operations in pbtemp.toml select their configured template groups.
+
+    Args:
+        tmp_path: Temporary destination containing custom template configuration.
+
+    Returns:
+        None: Assertions verify that only the configured template group is rendered.
+    """
+    (tmp_path / "pbtemp.toml").write_text(
+        '[operations]\nchecks = ["tests"]\n',
+        encoding="utf-8",
+    )
+
+    write_templates_to_cwd(answers(), output_dir=tmp_path, operation="checks")
+
+    assert (tmp_path / "tests" / "test_main.py").is_file()
+    assert not (tmp_path / "Makefile").exists()
     return None
 
 
@@ -241,6 +301,9 @@ def test_unselected_optional_files_and_tools_are_omitted(tmp_path: Path) -> None
     assert "pytest" not in project_text
     assert not (tmp_path / "mkdocs.yml").exists()
     assert not (tmp_path / "docs").exists()
+    makefile = (tmp_path / "Makefile").read_text(encoding="utf-8")
+    assert "uv run mkdocs build" not in makefile
+    assert "uv run mkdocs serve" not in makefile
     return None
 
 

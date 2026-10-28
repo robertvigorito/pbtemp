@@ -1,13 +1,15 @@
 """Tests for the scaffold command-line interface and interactive prompts."""
 
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
+import typer as _typer
 from typer.testing import CliRunner
 
 from pbtemp import merger_prompt, prompt
-from pbtemp.keyvars import get_template_paths
+from pbtemp.keyvars import DEFAULTS, get_template_paths
 
 
 def test_test_build_copies_all_templates_under_dist(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -392,8 +394,10 @@ def test_prompt_uses_supplied_values_as_question_defaults(
     answers = merger_prompt.collect_answers(defaults={"project_name": "pbtemp_example", "use_nuke": True})
 
     assert text_defaults[0] == "pbtemp_example"
-    assert text_defaults[3] == "120"
+    assert text_defaults[3] == ">=3.10"
+    assert text_defaults[4] == "120"
     assert answers["package_name"] == "pbtemp_example"
+    assert answers["requires_python"] == ">=3.10"
     assert answers["line_length"] == 120
     assert answers["use_nuke"] is True
     return None
@@ -408,7 +412,7 @@ def test_prompt_validates_custom_line_length(monkeypatch: pytest.MonkeyPatch) ->
     Returns:
         None: Assertions verify the parsed value and validation error.
     """
-    prompt_answers = iter(["sample", "1.0.0", "description", "88"])
+    prompt_answers = iter(["sample", "1.0.0", "description", ">=3.12", "88"])
 
     class PromptAnswer:
         """Stub a Questionary response with a predetermined answer."""
@@ -451,6 +455,7 @@ def test_prompt_validates_custom_line_length(monkeypatch: pytest.MonkeyPatch) ->
     answers = merger_prompt.collect_answers()
 
     assert answers["line_length"] == 88
+    assert answers["requires_python"] == ">=3.12"
     return None
 
 
@@ -561,6 +566,53 @@ def test_merge_command_supports_rez_operation(tmp_path: Path, monkeypatch: pytes
     return None
 
 
+def test_merge_command_supports_makefile_hard_replace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify the Makefile operation and hard-replace option are wired through the CLI.
+
+    Args:
+        tmp_path: Temporary existing-project directory.
+        monkeypatch: Pytest fixture for replacing prompt/history operations.
+
+    Returns:
+        None: Assertions verify the Makefile is replaced through the CLI.
+    """
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "existing-app"\n', encoding="utf-8")
+    (tmp_path / "Makefile").write_text("old-target:\n\techo old\n", encoding="utf-8")
+    sample_answers: dict[str, str | bool | int] = {
+        **DEFAULTS,
+        "project_name": "existing-app",
+        "package_name": "existing_app",
+        "command_name": "existing-app",
+        "use_mkdocs": False,
+        "use_pytest": True,
+        "use_ruff": True,
+    }
+
+    monkeypatch.setattr(prompt, "_collect_answers", lambda *, defaults: sample_answers)
+    monkeypatch.setattr(prompt, "_read_history", lambda: {})
+    monkeypatch.setattr(prompt, "_write_history", lambda _answers: True)
+
+    result = CliRunner().invoke(
+        prompt.app,
+        [
+            "merge",
+            "--output-dir",
+            str(tmp_path),
+            "--operation",
+            "makefile",
+            "--operation",
+            "docs",
+            "--hard-replace",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    makefile = (tmp_path / "Makefile").read_text(encoding="utf-8")
+    assert "old-target" not in makefile
+    assert "uv run ruff check ." in makefile
+    return None
+
+
 def test_merge_command_rejects_unknown_operation(tmp_path: Path) -> None:
     """Verify merge fails with a clear message for unsupported operations.
 
@@ -573,5 +625,22 @@ def test_merge_command_rejects_unknown_operation(tmp_path: Path) -> None:
     result = CliRunner().invoke(prompt.app, ["merge", "--output-dir", str(tmp_path), "--operation", "unknown"])
 
     assert result.exit_code != 0
-    assert "Invalid operation 'unknown'" in result.output
+    assert "Invalid operation(s) 'unknown'" in result.output
+    return None
+
+
+def test_merge_operation_completion_uses_project_configuration(tmp_path: Path) -> None:
+    """Verify operation completion includes matching configured project operations.
+
+    Args:
+        tmp_path: Temporary project directory containing custom operation configuration.
+
+    Returns:
+        None: Assertions verify prefix-filtered operation suggestions.
+    """
+    (tmp_path / "pbtemp.toml").write_text('[operations]\nchecks = ["tests"]\n', encoding="utf-8")
+    context = cast(_typer.Context, SimpleNamespace(params={"output_dir": tmp_path}))
+
+    assert prompt._complete_merge_operation(context, "chec") == ["checks"]
+    assert prompt._complete_merge_operation(context, "mak") == ["makefile"]
     return None

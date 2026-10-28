@@ -193,3 +193,73 @@ def test_merge_operation_can_target_only_rez_templates(tmp_path: Path) -> None:
     assert not (tmp_path / "src" / "legacy_import" / "main.py").exists()
     assert (tmp_path / "package.py") in changed
     return None
+
+
+def test_merge_hard_replace_replaces_generated_files_for_any_operation(tmp_path: Path) -> None:
+    """Verify replacement overwrites generated files selected by an operation.
+
+    Args:
+        tmp_path: Temporary existing-project directory.
+
+    Returns:
+        None: Assertions verify replacement and operation scope.
+    """
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "legacy-app"\n', encoding="utf-8")
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "index.md").write_text("custom docs\n", encoding="utf-8")
+    (tmp_path / "mkdocs.yml").write_text("custom: true\n", encoding="utf-8")
+    answers: dict[str, str | bool | int] = {
+        **DEFAULTS,
+        "project_name": "legacy-app",
+        "package_name": "legacy_app",
+        "command_name": "legacy-app",
+        "use_mkdocs": True,
+        "use_pytest": True,
+        "use_ruff": True,
+    }
+
+    changed = merge_project_templates(
+        answers=answers,
+        project_dir=tmp_path,
+        operation="docs",
+        hard_replace=True,
+    )
+
+    assert (docs_dir / "index.md").read_text(encoding="utf-8") != "custom docs\n"
+    assert (tmp_path / "mkdocs.yml").read_text(encoding="utf-8") != "custom: true\n"
+    assert docs_dir / "index.md" in changed
+    assert tmp_path / "mkdocs.yml" in changed
+    assert (tmp_path / "pyproject.toml").read_text(encoding="utf-8") == '[project]\nname = "legacy-app"\n'
+    return None
+
+
+def test_merge_accepts_multiple_operations(tmp_path: Path) -> None:
+    """Verify multiple operation scopes combine their selected template groups.
+
+    Args:
+        tmp_path: Temporary existing-project directory.
+
+    Returns:
+        None: Assertions verify both selected groups are merged.
+    """
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "legacy-app"\n', encoding="utf-8")
+    answers: dict[str, str | bool | int] = {
+        **DEFAULTS,
+        "project_name": "legacy-app",
+        "package_name": "legacy_app",
+        "command_name": "legacy-app",
+        "use_mkdocs": True,
+        "use_pytest": True,
+        "use_ruff": True,
+    }
+
+    changed = merge_project_templates(answers=answers, project_dir=tmp_path, operation=["docs", "makefile"])
+
+    assert (tmp_path / "mkdocs.yml").is_file()
+    assert (tmp_path / "docs" / "index.md").is_file()
+    assert (tmp_path / "Makefile").is_file()
+    assert not (tmp_path / "src" / "legacy_app" / "main.py").exists()
+    assert tmp_path / "Makefile" in changed
+    assert tmp_path / "mkdocs.yml" in changed
+    return None

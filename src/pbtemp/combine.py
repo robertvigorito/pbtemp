@@ -1,6 +1,7 @@
 """Render the selected templates into a destination directory."""
 
 import tomllib as _tomllib
+from collections.abc import Iterable as _Iterable
 from pathlib import Path as _Path
 from typing import Any as _Any
 
@@ -9,20 +10,6 @@ from jinja2 import Environment as _Environment
 from pbtemp.keyvars import get_path_map_template_path as _get_path_map_template_path
 from pbtemp.keyvars import get_template_paths as _get_template_paths
 from pbtemp.keyvars import get_template_root as _get_template_root
-
-_DEFAULT_PATH_MAPPINGS = {
-    "package": "src/{package_name}",
-    "nuke": "src/nuke",
-    "rez_build": "",
-}
-_OPERATION_TO_TEMPLATE_GROUPS: dict[str, set[str]] = {
-    "all": set(),
-    "core": {".github", "package"},
-    "docs": {"docs", "mkdocs.yml"},
-    "tests": {"tests"},
-    "nuke": {"nuke"},
-    "rez": {"rez_build"},
-}
 
 
 def version_up_on_conflict(path: _Path) -> _Path:
@@ -49,7 +36,7 @@ def write_templates_to_cwd(
     prefix: str = "",
     output_dir: _Path | str | None = None,
     config_dir: _Path | str | None = None,
-    operation: str = "all",
+    operation: str | _Iterable[str] = "all",
 ) -> list[_Path]:
     """Render selected templates into the destination directory.
 
@@ -72,9 +59,15 @@ def write_templates_to_cwd(
     path_mappings = get_template_path_mappings(configuration_root)
     template_root = _get_template_root()
     written: list[_Path] = []
-    selected_groups = _OPERATION_TO_TEMPLATE_GROUPS.get(operation)
-    if selected_groups is None:
-        raise ValueError(f"Unknown operation: {operation}")
+    operations = get_template_operations(configuration_root)
+    operation_names = [operation] if isinstance(operation, str) else list(operation)
+    if not operation_names:
+        raise ValueError("At least one template operation must be selected.")
+    unknown_operations = sorted(set(operation_names) - operations.keys())
+    if unknown_operations:
+        raise ValueError(f"Unknown template operation(s): {', '.join(unknown_operations)}")
+    selected_groups = set().union(*(operations[name] for name in operation_names))
+    includes_all = "all" in operation_names
 
     for template_path in _get_template_paths():
         relative_path = template_path.relative_to(template_root)
@@ -106,7 +99,7 @@ def write_templates_to_cwd(
         written.append(output_path)
 
     # Always ship a project-local path-map config during full/project init runs.
-    if operation == "all":
+    if includes_all:
         config_output_path = version_up_on_conflict(destination / "pbtemp.toml")
         rendered_config = environment.from_string(_get_path_map_template_path().read_text(encoding="utf-8")).render(
             **answers
@@ -129,20 +122,74 @@ def get_template_path_mappings(config_dir: _Path) -> dict[str, str]:
     Raises:
         ValueError: If the configuration file or path mappings are invalid.
     """
-    mappings = dict(_DEFAULT_PATH_MAPPINGS)
+    bundled_configuration = _read_template_configuration(_get_path_map_template_path())
+    mappings = _validate_path_mappings(bundled_configuration.get("paths", {}))
     config_path = config_dir / "pbtemp.toml"
     if not config_path.is_file():
         return mappings
 
+    project_configuration = _read_template_configuration(config_path)
+    mappings.update(_validate_path_mappings(project_configuration.get("paths", {})))
+    return mappings
+
+
+def get_template_operations(config_dir: _Path | None = None) -> dict[str, set[str]]:
+    """Load supported template operations from bundled and project TOML configuration.
+
+    Args:
+        config_dir: Optional directory containing a project ``pbtemp.toml`` override.
+
+    Returns:
+        dict[str, set[str]]: Operation names mapped to template groups.
+    """
+    bundled_configuration = _read_template_configuration(_get_path_map_template_path())
+    operations = _validate_operations(bundled_configuration.get("operations", {}))
+    if config_dir is None:
+        return operations
+
+    project_config_path = config_dir / "pbtemp.toml"
+    if project_config_path.is_file():
+        project_configuration = _read_template_configuration(project_config_path)
+        operations.update(_validate_operations(project_configuration.get("operations", {})))
+    return operations
+
+
+def _read_template_configuration(config_path: _Path) -> dict[str, _Any]:
+    """Read a TOML configuration file and ensure its root is a table.
+
+    Args:
+        config_path: TOML file to read.
+
+    Returns:
+        dict[str, Any]: Parsed TOML configuration.
+
+    Raises:
+        ValueError: If the file cannot be read or its TOML is invalid.
+    """
     try:
         configuration = _tomllib.loads(config_path.read_text(encoding="utf-8"))
     except (OSError, _tomllib.TOMLDecodeError) as error:
-        raise ValueError(f"Could not read template path configuration at {config_path}: {error}") from error
+        raise ValueError(f"Could not read template configuration at {config_path}: {error}") from error
+    if not isinstance(configuration, dict):
+        raise ValueError(f"Template configuration at {config_path} must contain a TOML table.")
+    return configuration
 
-    raw_mappings = configuration.get("paths", {})
+
+def _validate_path_mappings(raw_mappings: _Any) -> dict[str, str]:
+    """Validate configured template output path mappings.
+
+    Args:
+        raw_mappings: Value of the TOML ``[paths]`` table.
+
+    Returns:
+        dict[str, str]: Validated template paths.
+
+    Raises:
+        ValueError: If mappings are malformed or escape the project directory.
+    """
     if not isinstance(raw_mappings, dict):
         raise ValueError("The [paths] section in pbtemp.toml must be a table.")
-
+    mappings: dict[str, str] = {}
     for template_dir, output_dir in raw_mappings.items():
         if not isinstance(template_dir, str) or not isinstance(output_dir, str):
             raise ValueError("Template path mappings must use string keys and string values.")
@@ -151,3 +198,29 @@ def get_template_path_mappings(config_dir: _Path) -> dict[str, str]:
             raise ValueError(f"Template output path must stay within the project: {output_dir!r}.")
         mappings[template_dir] = output_dir
     return mappings
+
+
+def _validate_operations(raw_operations: _Any) -> dict[str, set[str]]:
+    """Validate configured operation-to-template-group mappings.
+
+    Args:
+        raw_operations: Value of the TOML ``[operations]`` table.
+
+    Returns:
+        dict[str, set[str]]: Operation names mapped to selected template groups.
+
+    Raises:
+        ValueError: If operation mappings are malformed.
+    """
+    if not isinstance(raw_operations, dict):
+        raise ValueError("The [operations] section in pbtemp.toml must be a table.")
+    operations: dict[str, set[str]] = {}
+    for operation, groups in raw_operations.items():
+        if (
+            not isinstance(operation, str)
+            or not isinstance(groups, list)
+            or not all(isinstance(group, str) for group in groups)
+        ):
+            raise ValueError("Template operations must map string names to lists of string template groups.")
+        operations[operation] = set(groups)
+    return operations

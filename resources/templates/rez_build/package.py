@@ -1,11 +1,13 @@
 """Rez package definition for {{ project_name }}."""
 
+import subprocess
+
 name = "{{ package_name }}"
-version = "{{ version }}"
+version = subprocess.check_output(["rezops-get-version"]).decode().strip()
 description = "{{ description }}"
-requires = ["python"]
+requires = []
 private_build_requires = []
-build_command = "python {root}/rezbuild.py"
+build_command = f"rezops-build {name}"
 
 
 def commands() -> bool:

@@ -1,0 +1,13 @@
+[paths]
+package = "src/{package_name}"
+nuke = "src/nuke"
+rez_build = ""
+
+[operations]
+all = []
+core = [".github", "package"]
+docs = ["docs", "mkdocs.yml"]
+tests = ["tests"]
+nuke = ["nuke"]
+rez = ["rez_build"]
+makefile = ["Makefile"]
