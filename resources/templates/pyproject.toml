@@ -38,7 +38,7 @@ dev = [
 {% endif %}]
 {% if use_pytest %}[tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-ra"{% if use_coverage %}, "--cov={{ package_name }}", "--cov-report=term-missing"{% endif %}]
+addopts = ["-ra"{% if use_coverage %}, "--cov={{ package_name }}", "--cov-report=term-missing", "--cov-report=html"{% endif %}]
 
 {% endif %}{% if use_black %}[tool.black]
 line-length = {{ line_length }}

@@ -2,6 +2,7 @@
 
 import re as _re
 import tomllib as _tomllib
+from collections.abc import Iterable as _Iterable
 from collections.abc import Mapping
 from copy import deepcopy as _deepcopy
 from pathlib import Path as _Path
@@ -14,7 +15,9 @@ from tomlkit.items import Array as _Array
 from tomlkit.items import InlineTable as _InlineTable
 from tomlkit.items import Table as _Table
 
-from pbtemp.combine import get_template_path_mappings as _get_template_path_mappings
+from pbtemp.combine import get_template_feature_groups as _get_template_feature_groups
+from pbtemp.combine import get_template_group_output_paths as _get_template_group_output_paths
+from pbtemp.combine import get_template_operations as _get_template_operations
 from pbtemp.combine import write_templates_to_cwd as _write_templates
 from pbtemp.keyvars import DEFAULTS as _DEFAULTS
 
@@ -37,7 +40,7 @@ _FEATURE_TO_PACKAGE = {
     "ruff": "use_ruff",
     "mkdocs": "use_mkdocs",
 }
-SUPPORTED_MERGE_OPERATIONS = ("all", "core", "docs", "tests", "nuke", "rez")
+SUPPORTED_MERGE_OPERATIONS = tuple(_get_template_operations())
 
 
 def get_existing_project_defaults(
@@ -99,21 +102,12 @@ def get_existing_project_defaults(
         if detected or include_fallbacks:
             defaults[option] = detected
 
-    for option, directory in (
-        ("use_rez_build", "rez_build"),
-        ("use_nuke", "nuke"),
-        ("use_mkdocs", "docs"),
-    ):
-        mapped_directory = _get_template_path_mappings(project_dir).get(directory, directory)
-        mapped_directory = mapped_directory.replace("{package_name}", package_name)
-        if option == "use_rez_build" and not mapped_directory:
-            detected = (project_dir / "package.py").is_file() and (project_dir / "rezbuild.py").is_file()
-        else:
-            detected = (project_dir / mapped_directory).is_dir()
+    feature_groups = _get_template_feature_groups(project_dir)
+    for option, template_groups in feature_groups.items():
+        expected_paths = _get_template_group_output_paths(project_dir, template_groups, package_name)
+        detected = any(path.exists() for path in expected_paths)
         if detected or include_fallbacks:
             defaults[option] = detected
-    if (project_dir / "mkdocs.yml").is_file():
-        defaults["use_mkdocs"] = True
 
     line_lengths = (
         tool_config.get("ruff", {}).get("line-length"),
@@ -132,19 +126,22 @@ def get_existing_project_defaults(
 def merge_project_templates(
     answers: dict[str, str | bool | int],
     project_dir: _Path,
-    operation: str = "all",
+    operation: str | _Iterable[str] = "all",
+    hard_replace: bool = False,
 ) -> list[_Path]:
     """Merge rendered templates into an existing project without overwriting source.
 
     The existing pyproject.toml is merged recursively: existing scalar settings take
     precedence, while missing keys and new list values from the template are added.
-    Other conflicting files are preserved; missing files are copied and .gitignore
-    entries are appended when absent.
+    Other conflicting files are preserved by default; missing files are copied and
+    .gitignore entries are appended when absent. ``hard_replace`` replaces every
+    existing generated file selected by the operation scopes.
 
     Args:
         answers: Values used to render the selected templates.
         project_dir: Root directory of the existing project.
-        operation: Optional migration scope used to filter template groups.
+        operation: One or more migration scopes used to select template groups.
+        hard_replace: Whether to replace existing generated files instead of merging or preserving them.
 
     Returns:
         list[Path]: Paths added or updated by the merge.
@@ -172,7 +169,11 @@ def merge_project_templates(
             existing_path = destination / relative_path
             existing_path.parent.mkdir(parents=True, exist_ok=True)
 
-            if relative_path == _Path("pyproject.toml"):
+            if hard_replace and existing_path.exists():
+                if existing_path.read_bytes() != rendered_path.read_bytes():
+                    existing_path.write_bytes(rendered_path.read_bytes())
+                    changed.append(existing_path)
+            elif relative_path == _Path("pyproject.toml"):
                 if _merge_pyproject(existing_path, rendered_path):
                     changed.append(existing_path)
             elif relative_path == _Path("Makefile") and existing_path.exists():

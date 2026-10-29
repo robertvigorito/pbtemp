@@ -3,6 +3,9 @@
 import tomllib
 from pathlib import Path
 
+import pytest
+
+from pbtemp import combine
 from pbtemp.keyvars import DEFAULTS
 from pbtemp.merge import get_existing_project_defaults, merge_project_templates
 
@@ -30,8 +33,13 @@ def test_existing_project_metadata_and_features_become_defaults(tmp_path: Path) 
     package_dir.mkdir(parents=True)
     (package_dir / "__init__.py").write_text("", encoding="utf-8")
     (tmp_path / "tests").mkdir()
-    (tmp_path / "src" / "nuke").mkdir(parents=True)
-    (tmp_path / "docs").mkdir()
+    nuke_dir = tmp_path / "src" / "nuke"
+    nuke_dir.mkdir(parents=True)
+    (nuke_dir / "init.py").write_text("# existing Nuke tools\n", encoding="utf-8")
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "index.md").write_text("# Existing docs\n", encoding="utf-8")
+    (tmp_path / "mkdocs.yml").write_text("site_name: legacy-app\n", encoding="utf-8")
 
     defaults = get_existing_project_defaults(tmp_path)
 
@@ -54,6 +62,27 @@ def test_existing_project_metadata_and_features_become_defaults(tmp_path: Path) 
     assert "use_black" not in sparse_defaults
     assert "use_rez_build" not in sparse_defaults
     assert sparse_defaults["use_mkdocs"] is True
+    return None
+
+
+def test_rez_detection_uses_configured_template_outputs(tmp_path: Path) -> None:
+    """Detect Rez support from configured files without requiring a fixed file pair.
+
+    Args:
+        tmp_path: Temporary project root with custom Rez paths and metadata.
+
+    Returns:
+        None: Assertions verify detected Rez feature defaults.
+    """
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "legacy-app"\n', encoding="utf-8")
+    rez_dir = tmp_path / "build" / "rez"
+    rez_dir.mkdir(parents=True)
+    (rez_dir / "package.py").write_text("# configured Rez package\n", encoding="utf-8")
+    (tmp_path / "pbtemp.toml").write_text('[paths]\nrez_build = "build/rez"\n', encoding="utf-8")
+
+    defaults = get_existing_project_defaults(tmp_path, include_fallbacks=False)
+
+    assert defaults["use_rez_build"] is True
     return None
 
 
@@ -181,15 +210,134 @@ def test_merge_operation_can_target_only_rez_templates(tmp_path: Path) -> None:
         "use_pylint": False,
         "use_pytest": True,
         "use_ruff": True,
-        "use_rez_build": True,
+        "use_rez_build": False,
         "use_nuke": False,
     }
 
     changed = merge_project_templates(answers=answers, project_dir=tmp_path, operation="rez")
 
     assert (tmp_path / "package.py").is_file()
-    assert (tmp_path / "rezbuild.py").is_file()
+    assert not (tmp_path / "rezbuild.py").exists()
     assert not (tmp_path / "tests" / "test_main.py").exists()
     assert not (tmp_path / "src" / "legacy_import" / "main.py").exists()
     assert (tmp_path / "package.py") in changed
+    return None
+
+
+def test_merge_rez_uses_toml_groups_for_all_template_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Merge every file in the TOML-configured Rez group and mapped destination.
+
+    Args:
+        tmp_path: Temporary project and source-template root.
+        monkeypatch: Pytest fixture for substituting template discovery.
+
+    Returns:
+        None: Assertions verify all configured Rez files were merged.
+    """
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    (project_dir / "pyproject.toml").write_text('[project]\nname = "legacy-app"\n', encoding="utf-8")
+    (project_dir / "pbtemp.toml").write_text(
+        '[paths]\nrez_build = "build/rez"\n'
+        '[operations]\nrez = ["rez_build"]\n'
+        '[feature_groups]\nuse_rez_build = ["rez_build"]\n',
+        encoding="utf-8",
+    )
+    template_root = tmp_path / "templates"
+    rez_group = template_root / "rez_build"
+    nested_template = rez_group / "config" / "settings.toml"
+    nested_template.parent.mkdir(parents=True)
+    (rez_group / "package.py").write_text('name = "{{ package_name }}"\n', encoding="utf-8")
+    nested_template.write_text('description = "{{ description }}"\n', encoding="utf-8")
+    monkeypatch.setattr(combine, "_get_template_root", lambda: template_root)
+    monkeypatch.setattr(combine, "_get_template_paths", lambda: [rez_group / "package.py", nested_template])
+    answers: dict[str, str | bool | int] = {
+        **DEFAULTS,
+        "project_name": "legacy-app",
+        "package_name": "legacy_app",
+        "description": "Configured Rez project",
+        "use_rez_build": False,
+    }
+
+    changed = merge_project_templates(answers=answers, project_dir=project_dir, operation="rez")
+
+    package_file = project_dir / "build" / "rez" / "package.py"
+    config_file = project_dir / "build" / "rez" / "config" / "settings.toml"
+    assert package_file.read_text(encoding="utf-8") == 'name = "legacy_app"\n'
+    assert config_file.read_text(encoding="utf-8") == 'description = "Configured Rez project"\n'
+    assert package_file in changed
+    assert config_file in changed
+    return None
+
+
+def test_merge_hard_replace_replaces_generated_files_for_any_operation(tmp_path: Path) -> None:
+    """Verify replacement overwrites generated files selected by an operation.
+
+    Args:
+        tmp_path: Temporary existing-project directory.
+
+    Returns:
+        None: Assertions verify replacement and operation scope.
+    """
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "legacy-app"\n', encoding="utf-8")
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "index.md").write_text("custom docs\n", encoding="utf-8")
+    (tmp_path / "mkdocs.yml").write_text("custom: true\n", encoding="utf-8")
+    answers: dict[str, str | bool | int] = {
+        **DEFAULTS,
+        "project_name": "legacy-app",
+        "package_name": "legacy_app",
+        "command_name": "legacy-app",
+        "use_mkdocs": True,
+        "use_pytest": True,
+        "use_ruff": True,
+    }
+
+    changed = merge_project_templates(
+        answers=answers,
+        project_dir=tmp_path,
+        operation="docs",
+        hard_replace=True,
+    )
+
+    assert (docs_dir / "index.md").read_text(encoding="utf-8") != "custom docs\n"
+    assert (tmp_path / "mkdocs.yml").read_text(encoding="utf-8") != "custom: true\n"
+    assert docs_dir / "index.md" in changed
+    assert tmp_path / "mkdocs.yml" in changed
+    assert (tmp_path / "pyproject.toml").read_text(encoding="utf-8") == '[project]\nname = "legacy-app"\n'
+    return None
+
+
+def test_merge_accepts_multiple_operations(tmp_path: Path) -> None:
+    """Verify multiple operation scopes combine their selected template groups.
+
+    Args:
+        tmp_path: Temporary existing-project directory.
+
+    Returns:
+        None: Assertions verify both selected groups are merged.
+    """
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "legacy-app"\n', encoding="utf-8")
+    answers: dict[str, str | bool | int] = {
+        **DEFAULTS,
+        "project_name": "legacy-app",
+        "package_name": "legacy_app",
+        "command_name": "legacy-app",
+        "use_mkdocs": True,
+        "use_pytest": True,
+        "use_ruff": True,
+    }
+
+    changed = merge_project_templates(answers=answers, project_dir=tmp_path, operation=["docs", "makefile"])
+
+    assert (tmp_path / "mkdocs.yml").is_file()
+    assert (tmp_path / "docs" / "index.md").is_file()
+    assert (tmp_path / "Makefile").is_file()
+    assert not (tmp_path / "src" / "legacy_app" / "main.py").exists()
+    assert tmp_path / "Makefile" in changed
+    assert tmp_path / "mkdocs.yml" in changed
     return None

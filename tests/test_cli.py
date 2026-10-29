@@ -1,13 +1,15 @@
 """Tests for the scaffold command-line interface and interactive prompts."""
 
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
+import typer as _typer
 from typer.testing import CliRunner
 
 from pbtemp import merger_prompt, prompt
-from pbtemp.keyvars import get_template_paths
+from pbtemp.keyvars import DEFAULTS, get_template_paths
 
 
 def test_test_build_copies_all_templates_under_dist(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -26,9 +28,9 @@ def test_test_build_copies_all_templates_under_dist(tmp_path: Path, monkeypatch:
     assert result.exit_code == 0, result.output
     project_dir = tmp_path / "dist" / "pbtemp-test-build"
     copied_files = [path for path in project_dir.rglob("*") if path.is_file()]
-    assert len(copied_files) == len(get_template_paths()) + 1
+    assert len(copied_files) == len(get_template_paths())
     assert (project_dir / "pyproject.toml").is_file()
-    assert (project_dir / "pbtemp.toml").is_file()
+    assert not (project_dir / "pbtemp.toml").exists()
     assert (project_dir / "src" / "pbtemp_test_build" / "main.py").is_file()
     assert (project_dir / "package.py").is_file()
     assert (project_dir / "tests" / "test_main.py").is_file()
@@ -111,6 +113,7 @@ def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypat
             "--project-name",
             "pbtemp_example",
             "--use-nuke",
+            "--use-rez-build",
             "--use-mkdocs",
             "--use-pytest-sugar",
             "--use-coverage",
@@ -121,6 +124,7 @@ def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypat
     assert collected_defaults == {
         "project_name": "pbtemp_example",
         "use_nuke": True,
+        "use_rez_build": True,
         "use_mkdocs": True,
         "use_pytest_sugar": True,
         "use_coverage": True,
@@ -128,7 +132,7 @@ def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypat
     return None
 
 
-def test_init_uses_history_but_explicit_flags_take_precedence(
+def test_init_uses_history_only_when_enabled_and_explicit_flags_take_precedence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -172,7 +176,15 @@ def test_init_uses_history_but_explicit_flags_take_precedence(
 
     result = CliRunner().invoke(
         prompt.app,
-        ["init", "--output-dir", str(tmp_path), "--project-name", "explicit-name", "--no-use-nuke"],
+        [
+            "init",
+            "--output-dir",
+            str(tmp_path),
+            "--history",
+            "--project-name",
+            "explicit-name",
+            "--no-use-nuke",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -183,6 +195,72 @@ def test_init_uses_history_but_explicit_flags_take_precedence(
         "use_nuke": False,
         "line_length": 88,
     }
+    return None
+
+
+def test_init_uses_existing_pyproject_as_prompt_hints(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Use existing pyproject metadata to prefill init prompts when available.
+
+    Args:
+        tmp_path: Existing project directory used as the output destination.
+        monkeypatch: Pytest fixture for replacing prompt collaborators.
+
+    Returns:
+        None: Assertions verify metadata-derived prompt defaults.
+    """
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "hinted-project"\nversion = "2.3.4"\nrequires-python = ">=3.12"\n',
+        encoding="utf-8",
+    )
+    collected_defaults: dict[str, str | bool | int] = {}
+
+    def fake_collect_answers(*, defaults: dict[str, str | bool | int]) -> dict[str, str | bool | int]:
+        collected_defaults.update(defaults)
+        return {"project_name": "hinted-project"}
+
+    monkeypatch.setattr(prompt, "_collect_answers", fake_collect_answers)
+    monkeypatch.setattr(prompt, "_write_templates", lambda _answers, output_dir: [])
+    monkeypatch.setattr(prompt, "_write_history", lambda _answers: True)
+
+    result = CliRunner().invoke(prompt.app, ["init", "--output-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert collected_defaults["project_name"] == "hinted-project"
+    assert collected_defaults["version"] == "2.3.4"
+    assert collected_defaults["requires_python"] == ">=3.12"
+    return None
+
+
+def test_init_does_not_use_or_save_history_by_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify init leaves saved history untouched unless explicitly enabled.
+
+    Args:
+        tmp_path: Temporary scaffold destination.
+        monkeypatch: Pytest fixture for replacing CLI collaborators.
+
+    Returns:
+        None: Assertions verify history is neither read nor written.
+    """
+    monkeypatch.setattr(prompt, "_collect_answers", lambda *, defaults: {"project_name": "fresh-name"})
+    monkeypatch.setattr(prompt, "_write_templates", lambda _answers, output_dir: [])
+    monkeypatch.setattr(prompt, "_read_history", lambda: (_ for _ in ()).throw(AssertionError("history read")))
+
+    def fail_write_history(_answers: dict[str, str | bool | int]) -> bool:
+        """Fail if init attempts to save history without opt-in.
+
+        Args:
+            _answers: Values that should not be written.
+
+        Returns:
+            bool: Never returns.
+        """
+        raise AssertionError("history saved")
+
+    monkeypatch.setattr(prompt, "_write_history", fail_write_history)
+
+    result = CliRunner().invoke(prompt.app, ["init", "--output-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
     return None
 
 
@@ -282,11 +360,7 @@ def test_init_can_ignore_history_for_one_run(
 
     assert result.exit_code == 0, result.output
     assert collected_defaults == {}
-    assert saved_answers == {
-        "project_name": "fresh-name",
-        "package_name": "fresh_name",
-        "command_name": "fresh-name",
-    }
+    assert saved_answers == {}
     return None
 
 
@@ -392,8 +466,10 @@ def test_prompt_uses_supplied_values_as_question_defaults(
     answers = merger_prompt.collect_answers(defaults={"project_name": "pbtemp_example", "use_nuke": True})
 
     assert text_defaults[0] == "pbtemp_example"
-    assert text_defaults[3] == "120"
+    assert text_defaults[3] == ">=3.10"
+    assert text_defaults[4] == "120"
     assert answers["package_name"] == "pbtemp_example"
+    assert answers["requires_python"] == ">=3.10"
     assert answers["line_length"] == 120
     assert answers["use_nuke"] is True
     return None
@@ -408,7 +484,7 @@ def test_prompt_validates_custom_line_length(monkeypatch: pytest.MonkeyPatch) ->
     Returns:
         None: Assertions verify the parsed value and validation error.
     """
-    prompt_answers = iter(["sample", "1.0.0", "description", "88"])
+    prompt_answers = iter(["sample", "1.0.0", "description", ">=3.12", "88"])
 
     class PromptAnswer:
         """Stub a Questionary response with a predetermined answer."""
@@ -451,6 +527,7 @@ def test_prompt_validates_custom_line_length(monkeypatch: pytest.MonkeyPatch) ->
     answers = merger_prompt.collect_answers()
 
     assert answers["line_length"] == 88
+    assert answers["requires_python"] == ">=3.12"
     return None
 
 
@@ -544,7 +621,7 @@ def test_merge_command_supports_rez_operation(tmp_path: Path, monkeypatch: pytes
         "use_pylint": False,
         "use_pytest": True,
         "use_ruff": True,
-        "use_rez_build": True,
+        "use_rez_build": False,
     }
 
     monkeypatch.setattr(prompt, "_collect_answers", lambda *, defaults: sample_answers)
@@ -555,9 +632,56 @@ def test_merge_command_supports_rez_operation(tmp_path: Path, monkeypatch: pytes
 
     assert result.exit_code == 0, result.output
     assert (tmp_path / "package.py").is_file()
-    assert (tmp_path / "rezbuild.py").is_file()
+    assert not (tmp_path / "rezbuild.py").exists()
     assert not (tmp_path / "tests").exists()
     assert not (tmp_path / "src" / "existing_app").exists()
+    return None
+
+
+def test_merge_command_supports_makefile_hard_replace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify the Makefile operation and hard-replace option are wired through the CLI.
+
+    Args:
+        tmp_path: Temporary existing-project directory.
+        monkeypatch: Pytest fixture for replacing prompt/history operations.
+
+    Returns:
+        None: Assertions verify the Makefile is replaced through the CLI.
+    """
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "existing-app"\n', encoding="utf-8")
+    (tmp_path / "Makefile").write_text("old-target:\n\techo old\n", encoding="utf-8")
+    sample_answers: dict[str, str | bool | int] = {
+        **DEFAULTS,
+        "project_name": "existing-app",
+        "package_name": "existing_app",
+        "command_name": "existing-app",
+        "use_mkdocs": False,
+        "use_pytest": True,
+        "use_ruff": True,
+    }
+
+    monkeypatch.setattr(prompt, "_collect_answers", lambda *, defaults: sample_answers)
+    monkeypatch.setattr(prompt, "_read_history", lambda: {})
+    monkeypatch.setattr(prompt, "_write_history", lambda _answers: True)
+
+    result = CliRunner().invoke(
+        prompt.app,
+        [
+            "merge",
+            "--output-dir",
+            str(tmp_path),
+            "--operation",
+            "makefile",
+            "--operation",
+            "docs",
+            "--hard-replace",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    makefile = (tmp_path / "Makefile").read_text(encoding="utf-8")
+    assert "old-target" not in makefile
+    assert "uv run ruff check ." in makefile
     return None
 
 
@@ -573,5 +697,22 @@ def test_merge_command_rejects_unknown_operation(tmp_path: Path) -> None:
     result = CliRunner().invoke(prompt.app, ["merge", "--output-dir", str(tmp_path), "--operation", "unknown"])
 
     assert result.exit_code != 0
-    assert "Invalid operation 'unknown'" in result.output
+    assert "Invalid operation(s) 'unknown'" in result.output
+    return None
+
+
+def test_merge_operation_completion_uses_project_configuration(tmp_path: Path) -> None:
+    """Verify operation completion includes matching configured project operations.
+
+    Args:
+        tmp_path: Temporary project directory containing custom operation configuration.
+
+    Returns:
+        None: Assertions verify prefix-filtered operation suggestions.
+    """
+    (tmp_path / "pbtemp.toml").write_text('[operations]\nchecks = ["tests"]\n', encoding="utf-8")
+    context = cast(_typer.Context, SimpleNamespace(params={"output_dir": tmp_path}))
+
+    assert prompt._complete_merge_operation(context, "chec") == ["checks"]
+    assert prompt._complete_merge_operation(context, "mak") == ["makefile"]
     return None
