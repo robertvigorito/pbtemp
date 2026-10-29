@@ -19,4 +19,3 @@ def commands() -> bool:
     env.PYTHONPATH.append("{root}/python")  # noqa: F821 -- Rez injects ``env`` at runtime.
 {% if use_nuke %}    env.NUKE_PATH.append("{root}/src/nuke")  # noqa: F821 -- Rez injects ``env`` at runtime.
 {% endif %}
-    return True

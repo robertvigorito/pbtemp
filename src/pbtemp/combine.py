@@ -67,7 +67,6 @@ def write_templates_to_cwd(
     if unknown_operations:
         raise ValueError(f"Unknown template operation(s): {', '.join(unknown_operations)}")
     selected_groups = set().union(*(operations[name] for name in operation_names))
-    includes_all = "all" in operation_names
 
     for template_path in _get_template_paths():
         relative_path = template_path.relative_to(template_root)
@@ -97,15 +96,6 @@ def write_templates_to_cwd(
         rendered = environment.from_string(template_path.read_text(encoding="utf-8")).render(**answers)
         output_path.write_text(rendered, encoding="utf-8")
         written.append(output_path)
-
-    # Always ship a project-local path-map config during full/project init runs.
-    if includes_all:
-        config_output_path = version_up_on_conflict(destination / "pbtemp.toml")
-        rendered_config = environment.from_string(_get_path_map_template_path().read_text(encoding="utf-8")).render(
-            **answers
-        )
-        config_output_path.write_text(rendered_config, encoding="utf-8")
-        written.append(config_output_path)
 
     return written
 

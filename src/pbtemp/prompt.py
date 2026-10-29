@@ -213,11 +213,17 @@ def init_project(
         "--use-rez-build/--no-use-rez-build",
         help="Default whether to include Rez build support.",
     ),
+    use_history: bool = _typer.Option(
+        False,
+        "--history",
+        "--use-history",
+        help="Use and update saved prompt history for this init run (disabled by default).",
+    ),
     ignore_history: bool = _typer.Option(
         False,
         "--ignore-history",
         "--no-history",
-        help=("Do not use previously saved answers for this run (answers are still saved afterward)."),
+        help="Do not use saved history for init, even if --history is also specified.",
     ),
 ) -> bool:
     """Interactively create a Python project scaffold.
@@ -242,6 +248,7 @@ def init_project(
         use_coverage: Default coverage reporting selection.
         use_ruff: Default Ruff selection.
         use_rez_build: Default Rez support selection.
+        use_history: Whether to use and update saved prompt history.
         ignore_history: Whether to skip remembered prompt values for this run.
 
     Returns:
@@ -275,7 +282,17 @@ def init_project(
         }.items()
         if value is not None
     }
-    defaults = {**_load_history_defaults(ignore_history), **explicit_defaults}
+    defaults: dict[str, str | bool | int] = {}
+    pyproject_path = output_dir.expanduser() / "pyproject.toml"
+    if pyproject_path.is_file():
+        try:
+            defaults.update(_get_existing_project_defaults(output_dir.expanduser(), include_fallbacks=False))
+        except (OSError, ValueError) as error:
+            _typer.echo(f"Warning: could not use pyproject.toml defaults: {error}", err=True)
+    history_enabled = use_history and not ignore_history
+    if history_enabled:
+        defaults.update(_load_history_defaults(ignore_history=False))
+    defaults.update(explicit_defaults)
     try:
         answers = _collect_answers(defaults=defaults)
     except KeyboardInterrupt as error:
@@ -287,7 +304,8 @@ def init_project(
     answers["package_name"] = project_name.replace("-", "_").replace(".", "_").lower()
     answers["command_name"] = project_name.replace("_", "-").lower()
     written = _write_templates(answers, output_dir=output_dir.expanduser())
-    _save_history(answers)
+    if history_enabled:
+        _save_history(answers)
     _typer.echo(f"Created {len(written)} project files in {output_dir.expanduser().resolve()}")
     for path in written:
         _typer.echo(f"  {path.relative_to(output_dir.expanduser().resolve())}")
@@ -445,8 +463,7 @@ def build_temp() -> bool:
     Raises:
         typer.Exit: If not all bundled templates can be copied.
     """
-    # ``write_templates_to_cwd`` also emits a project-local pbtemp.toml path-map.
-    template_count = len(_get_template_paths()) + 1
+    template_count = len(_get_template_paths())
     distribution_dir = _Path.cwd() / "dist"
     distribution_dir.mkdir(parents=True, exist_ok=True)
     output_dir = distribution_dir / str(_TEST_BUILD_ANSWERS["project_name"])

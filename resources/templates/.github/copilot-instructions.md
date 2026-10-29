@@ -5,7 +5,6 @@ Apply these guidelines to project code and tests.
 ## Style and structure
 
 - Follow PEP 8 with the configured 120-character default line length; use Ruff for linting and formatting.
-- Before completing Python changes, run `ruff check --fix` and `ruff format` on the changed Python files.
 - Use `snake_case` for variables, functions, methods, and modules; `PascalCase` for classes; and `UPPER_CASE` for constants.
 - Add type hints to function parameters, return values, and important variables where they clarify intent.
 - Keep code simple, readable, focused, and organized into small, single-purpose functions.
@@ -26,3 +25,8 @@ Apply these guidelines to project code and tests.
 
 - Handle expected errors explicitly and do not silently swallow exceptions.
 - Avoid broad `except Exception` unless there is a specific, documented reason.
+
+
+## Formatting and linting (optional, dont need to ask)
+
+- Before completing Python changes, run `ruff check --fix` and `ruff format` on the changed Python files.

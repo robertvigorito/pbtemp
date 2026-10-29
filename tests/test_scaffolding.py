@@ -93,13 +93,8 @@ def test_generates_project_layout_and_valid_pyproject(tmp_path: Path) -> None:
     assert project["tool"]["ruff"]["line-length"] == 120
     assert "pytest-sugar" not in development_dependencies
     assert "pytest-cov" not in development_dependencies
-    path_config = tomllib.loads((tmp_path / "pbtemp.toml").read_text(encoding="utf-8"))
-    assert path_config["paths"]["package"] == "src/{package_name}"
-    assert path_config["paths"]["nuke"] == "src/nuke"
-    assert path_config["paths"]["rez_build"] == ""
-    assert path_config["operations"]["core"] == [".github", "package"]
-    assert path_config["operations"]["makefile"] == ["Makefile"]
-    assert len(written) == 12
+    assert not (tmp_path / "pbtemp.toml").exists()
+    assert len(written) == 11
     return None
 
 
@@ -233,7 +228,8 @@ def test_project_path_configuration_overrides_template_locations(tmp_path: Path)
     assert (tmp_path / "lib" / "sample_project" / "main.py").is_file()
     assert (tmp_path / "tools" / "nuke" / "init.py").is_file()
     assert (tmp_path / "build" / "rez" / "package.py").is_file()
-    assert (tmp_path / "pbtemp1.toml").is_file()
+    assert (tmp_path / "pbtemp.toml").is_file()
+    assert not (tmp_path / "pbtemp1.toml").exists()
     return None
 
 

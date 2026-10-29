@@ -28,9 +28,9 @@ def test_test_build_copies_all_templates_under_dist(tmp_path: Path, monkeypatch:
     assert result.exit_code == 0, result.output
     project_dir = tmp_path / "dist" / "pbtemp-test-build"
     copied_files = [path for path in project_dir.rglob("*") if path.is_file()]
-    assert len(copied_files) == len(get_template_paths()) + 1
+    assert len(copied_files) == len(get_template_paths())
     assert (project_dir / "pyproject.toml").is_file()
-    assert (project_dir / "pbtemp.toml").is_file()
+    assert not (project_dir / "pbtemp.toml").exists()
     assert (project_dir / "src" / "pbtemp_test_build" / "main.py").is_file()
     assert (project_dir / "package.py").is_file()
     assert (project_dir / "tests" / "test_main.py").is_file()
@@ -113,6 +113,7 @@ def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypat
             "--project-name",
             "pbtemp_example",
             "--use-nuke",
+            "--use-rez-build",
             "--use-mkdocs",
             "--use-pytest-sugar",
             "--use-coverage",
@@ -123,6 +124,7 @@ def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypat
     assert collected_defaults == {
         "project_name": "pbtemp_example",
         "use_nuke": True,
+        "use_rez_build": True,
         "use_mkdocs": True,
         "use_pytest_sugar": True,
         "use_coverage": True,
@@ -130,7 +132,7 @@ def test_init_options_are_forwarded_as_prompt_defaults(tmp_path: Path, monkeypat
     return None
 
 
-def test_init_uses_history_but_explicit_flags_take_precedence(
+def test_init_uses_history_only_when_enabled_and_explicit_flags_take_precedence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -174,7 +176,15 @@ def test_init_uses_history_but_explicit_flags_take_precedence(
 
     result = CliRunner().invoke(
         prompt.app,
-        ["init", "--output-dir", str(tmp_path), "--project-name", "explicit-name", "--no-use-nuke"],
+        [
+            "init",
+            "--output-dir",
+            str(tmp_path),
+            "--history",
+            "--project-name",
+            "explicit-name",
+            "--no-use-nuke",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -185,6 +195,72 @@ def test_init_uses_history_but_explicit_flags_take_precedence(
         "use_nuke": False,
         "line_length": 88,
     }
+    return None
+
+
+def test_init_uses_existing_pyproject_as_prompt_hints(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Use existing pyproject metadata to prefill init prompts when available.
+
+    Args:
+        tmp_path: Existing project directory used as the output destination.
+        monkeypatch: Pytest fixture for replacing prompt collaborators.
+
+    Returns:
+        None: Assertions verify metadata-derived prompt defaults.
+    """
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "hinted-project"\nversion = "2.3.4"\nrequires-python = ">=3.12"\n',
+        encoding="utf-8",
+    )
+    collected_defaults: dict[str, str | bool | int] = {}
+
+    def fake_collect_answers(*, defaults: dict[str, str | bool | int]) -> dict[str, str | bool | int]:
+        collected_defaults.update(defaults)
+        return {"project_name": "hinted-project"}
+
+    monkeypatch.setattr(prompt, "_collect_answers", fake_collect_answers)
+    monkeypatch.setattr(prompt, "_write_templates", lambda _answers, output_dir: [])
+    monkeypatch.setattr(prompt, "_write_history", lambda _answers: True)
+
+    result = CliRunner().invoke(prompt.app, ["init", "--output-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert collected_defaults["project_name"] == "hinted-project"
+    assert collected_defaults["version"] == "2.3.4"
+    assert collected_defaults["requires_python"] == ">=3.12"
+    return None
+
+
+def test_init_does_not_use_or_save_history_by_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify init leaves saved history untouched unless explicitly enabled.
+
+    Args:
+        tmp_path: Temporary scaffold destination.
+        monkeypatch: Pytest fixture for replacing CLI collaborators.
+
+    Returns:
+        None: Assertions verify history is neither read nor written.
+    """
+    monkeypatch.setattr(prompt, "_collect_answers", lambda *, defaults: {"project_name": "fresh-name"})
+    monkeypatch.setattr(prompt, "_write_templates", lambda _answers, output_dir: [])
+    monkeypatch.setattr(prompt, "_read_history", lambda: (_ for _ in ()).throw(AssertionError("history read")))
+
+    def fail_write_history(_answers: dict[str, str | bool | int]) -> bool:
+        """Fail if init attempts to save history without opt-in.
+
+        Args:
+            _answers: Values that should not be written.
+
+        Returns:
+            bool: Never returns.
+        """
+        raise AssertionError("history saved")
+
+    monkeypatch.setattr(prompt, "_write_history", fail_write_history)
+
+    result = CliRunner().invoke(prompt.app, ["init", "--output-dir", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
     return None
 
 
@@ -284,11 +360,7 @@ def test_init_can_ignore_history_for_one_run(
 
     assert result.exit_code == 0, result.output
     assert collected_defaults == {}
-    assert saved_answers == {
-        "project_name": "fresh-name",
-        "package_name": "fresh_name",
-        "command_name": "fresh-name",
-    }
+    assert saved_answers == {}
     return None
 
 

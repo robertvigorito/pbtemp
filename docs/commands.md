@@ -28,12 +28,15 @@ The command prompts for project name, version, description, Python compatibility
 (`>=3.10` by default), build backend, and optional tools. The
 selected options determine which configuration and feature files are generated. If an output file
 already exists, the generator keeps it and creates a numbered sibling rather than overwriting it.
-Template directories are placed according to the project-local `pbtemp.toml` path map: package code
-defaults to `src/{package_name}`, while Nuke and Rez support default to `src/nuke` and
-the project root (`package.py` and `rezbuild.py`) via `rez_build = ""`. Top-level template files and other directories retain their template-relative
-locations. Edit `[paths]` in `pbtemp.toml` to customize these destinations; paths must remain inside
-the project directory. The `[operations]` table in the same file maps operation names to template
-groups, so operations can be customized or added there. Both tables are respected by `merge`.
+If the output directory contains a `pyproject.toml`, detected project metadata is used as a hint for
+the prompts. Saved prompt history is off by default for `init`; pass `--history` to load and update
+it. The Rez integration is optional and can be selected in the checklist or preselected with
+`--use-rez-build`.
+Template directories default to package code under `src/{package_name}`, Nuke support under
+`src/nuke`, and Rez support at the project root. `pbtemp init` does not copy the internal
+`pbtemp.toml` configuration resource into generated projects. Advanced users can create a
+project-local `pbtemp.toml` with `[paths]` and `[operations]` tables to customize destinations or
+add template groups; these overrides are used by `merge`.
 
 
 When you only want to migrate part of the template set, use `--operation`:
@@ -115,8 +118,9 @@ Example: create a project with documentation, tests, and Ruff, but without a con
 pbtemp init --project-name widget-tools --use-mkdocs --use-pytest --use-pytest-sugar --use-coverage --use-ruff --no-use-console-script
 ```
 
-`--ignore-history` (also accepted as `--no-history`) ignores saved choices for this invocation.
-The command still saves the newly answered choices if generation succeeds. See [History](history.md).
+`--history` (also accepted as `--use-history`) enables saved prompt history for `init`.
+`--ignore-history` (also accepted as `--no-history`) overrides it and keeps history disabled.
+See [History](history.md).
 
 ## `pbtemp merge`
 
